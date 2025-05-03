@@ -1,6 +1,6 @@
 # 🤖 AI SBOM Generator
 
-This is the official GitHub repository for the **AI SBOM Generator** — a tool for generating AI Software Bills of Materials (AI SBOMs) in [CycloneDX](https://cyclonedx.org) format.
+This is [the official GitHub repository for the **AI SBOM Generator**](https://github.com/aetheris-ai/aibom-generator/) — an open-source tool for generating AI Software Bills of Materials (AI SBOMs) in [CycloneDX](https://cyclonedx.org) format.
 
 🚀 **Try the tool live:**  
 👉 [huggingface.co/spaces/aetheris-ai/aibom-generator](https://huggingface.co/spaces/aetheris-ai/aibom-generator)
@@ -25,7 +25,7 @@ This is the official GitHub repository for the **AI SBOM Generator** — a tool 
 
 ---
 
-## 🐞 Found a Bug?
+## 🐞 Found a Bug or Have an Improvement Rerquest?
 
 Please help us improve!
 
