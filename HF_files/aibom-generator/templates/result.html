@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI SBOM Generated</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            line-height: 1.6;
+            color: #333;
+            background-color: #f9f9f9;
+        }
+        .container { 
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header styling */
+        .header {
+            background-color: #ffffff;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        .header img {
+            height: 60px;
+            margin-right: 15px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        /* Content styling */
+        .content-section {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .content-section h2 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 22px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .content-section h3 {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+        
+        .content-section p {
+            margin-bottom: 20px;
+            font-size: 16px;
+            line-height: 1.7;
+            color: #555;
+        }
+        
+        /* Button styling */
+        .button {
+            display: inline-block;
+            padding: 12px 20px;
+            background-color: #7f8c8d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background-color 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .button:hover {
+            background-color: #95a5a6;
+            text-decoration: none;
+        }
+        
+        button {
+            padding: 12px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        /* Table styling */
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin-top: 15px; 
+            margin-bottom: 20px;
+        }
+        th, td { 
+            border: 1px solid #e9ecef; 
+            padding: 12px; 
+        }
+        th { 
+            background-color: #f8f9fa; 
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        /* Fixed color styling for field checklist items */
+        .check-mark { color: #27ae60; } /* Green color for check marks */
+        .x-mark { color: #e74c3c; } /* Red color for x marks */
+        .field-name { color: #000; } /* Black color for field names */
+        .field-stars { color: #000; } /* Black color for importance stars */
+        
+        .improvement { 
+            color: #2c3e50; 
+            background-color: #ecf0f1; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            border-left: 4px solid #3498db;
+        }
+        .improvement-value { color: #27ae60; font-weight: bold; }
+        .ai-badge { 
+            background-color: #3498db; 
+            color: white; 
+            padding: 3px 8px; 
+            border-radius: 3px; 
+            font-size: 0.8em; 
+            margin-left: 10px; 
+        }
+        
+        /* New styles for human-friendly viewer */
+        .aibom-viewer {
+            margin: 20px 0;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        .aibom-section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .aibom-section h4 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .aibom-property {
+            display: flex;
+            margin: 10px 0;
+        }
+        .property-name {
+            font-weight: bold;
+            width: 200px;
+            color: #34495e;
+        }
+        .property-value {
+            flex: 1;
+            color: #555;
+            line-height: 1.6;
+        }
+        .aibom-tabs {
+            display: flex;
+            border-bottom: 1px solid #e9ecef;
+            margin-bottom: 20px;
+        }
+        .aibom-tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            margin-right: 5px;
+            border-radius: 8px 8px 0 0;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .aibom-tab.active {
+            background-color: #6c7a89;
+            color: white;
+        }
+        .aibom-tab:hover:not(.active) {
+            background-color: #e9ecef;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .json-view {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            overflow: auto;
+            max-height: 500px;
+            font-family: monospace;
+            line-height: 1.5;
+        }
+        .collapsible {
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .collapsible:after {
+            content: '+';
+            position: absolute;
+            right: 10px;
+            font-weight: bold;
+        }
+        .collapsible.active:after {
+            content: '-';
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .collapsible-content.active {
+            max-height: 500px;
+        }
+        .tag {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 4px 10px;
+            border-radius: 16px;
+            margin: 3px;
+            font-size: 0.9em;
+        }
+        .key-info {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        
+        /* Progress bar styles */
+        .progress-container {
+            width: 100%;
+            background-color: #f1f1f1;
+            border-radius: 8px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 24px;
+            border-radius: 8px;
+            text-align: center;
+            line-height: 24px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: width 0.5s ease;
+        }
+        .progress-excellent {
+            background-color: #4CAF50; /* Green */
+        }
+        .progress-good {
+            background-color: #2196F3; /* Blue */
+        }
+        .progress-fair {
+            background-color: #FF9800; /* Orange */
+        }
+        .progress-poor {
+            background-color: #f44336; /* Red */
+        }
+        .score-table {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .score-table th {
+            text-align: left;
+            padding: 12px;
+            background-color: #f8f9fa;
+        }
+        .score-table td {
+            padding: 12px;
+        }
+        .score-weight {
+            font-size: 0.9em;
+            color: #666;
+            margin-left: 5px;
+        }
+        .score-label {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: white;
+            font-size: 0.9em;
+            margin-left: 5px;
+            background-color: transparent; /* Make background transparent */
+        }
+        .total-score-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .total-score {
+            font-size: 28px;
+            font-weight: bold;
+            margin-right: 20px;
+            color: #2c3e50;
+        }
+        .total-progress {
+            flex: 1;
+        }
+        
+        /* New styles for improved user understanding */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 300px;
+            background-color: #34495e;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 12px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -150px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9em;
+            line-height: 1.5;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #34495e transparent transparent transparent;
+        }
+        .missing-fields {
+            background-color: #ffebee;
+            border-left: 4px solid #f44336;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .missing-fields h4 {
+            margin-top: 0;
+            color: #d32f2f;
+            margin-bottom: 15px;
+        }
+        .missing-fields ul {
+            margin-bottom: 0;
+            padding-left: 20px;
+        }
+        .recommendations {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .recommendations h4 {
+            margin-top: 0;
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+        .importance-indicator {
+            display: inline-block;
+            margin-left: 5px;
+        }
+        .high-importance {
+            color: #d32f2f;
+        }
+        .medium-importance {
+            color: #ff9800;
+        }
+        .low-importance {
+            color: #2196f3;
+        }
+        .scoring-rubric {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .scoring-rubric h4 {
+            margin-top: 0;
+            color: #1565c0;
+            margin-bottom: 15px;
+        }
+        .scoring-rubric table {
+            width: 100%;
+            margin-top: 15px;
+        }
+        .scoring-rubric th, .scoring-rubric td {
+            padding: 10px;
+            text-align: left;
+        }
+        .note-box {
+            background-color: #fffbea; /* Lighter yellow background */
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .download-section {
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+        }
+        .download-section p {
+            margin: 0;
+            margin-right: 15px;
+        }
+        
+        /* New styles for completeness profile */
+        .completeness-profile {
+            background-color: #e8f5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #4caf50;
+        }
+        .profile-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .profile-basic {
+            background-color: #ff9800;
+        }
+        .profile-standard {
+            background-color: #2196f3;
+        }
+        .profile-advanced {
+            background-color: #4caf50;
+        }
+        /* Fix for contrast issue with profile status */
+        .profile-incomplete {
+            background-color: #f44336;
+            color: white; /* Ensure text is visible on red background */
+        }
+        .field-tier {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .tier-critical {
+            background-color: #d32f2f;
+        }
+        .tier-important {
+            background-color: #ff9800;
+        }
+        .tier-supplementary {
+            background-color: #2196f3;
+        }
+        .tier-legend {
+            display: flex;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+        .tier-legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 20px;
+        }
+        /* New style for validation penalty explanation */
+        .validation-penalty-info {
+            background-color: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+        .validation-penalty-info h4 {
+            margin-top: 0;
+            color: #e65100;
+            margin-bottom: 15px;
+        }
+        
+        /* New section for score calculation explanation */
+        .score-calculation {
+            margin-top: 30px;
+            padding: 25px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .score-calculation h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .calculation-section {
+            margin-bottom: 25px;
+        }
+        
+        /* Footer styling */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-top: 30px;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .aibom-property {
+                flex-direction: column;
+            }
+            .property-name {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+            .total-score-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .total-score {
+                margin-bottom: 10px;
+            }
+            .aibom-tabs {
+                flex-wrap: wrap;
+            }
+            .aibom-tab {
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header with logo and title -->
+    <div class="header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <a href="https://aetheris.ai/" target="_blank">
+                <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
+            </a>
+            <h1>AI SBOM Generator</h1>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="content-section">
+            <h2>AI SBOM Generated for {{ model_id }}</h2>
+            
+            <a href="/" class="button">Generate another AI SBOM</a>
+            
+            <div class="download-section">
+                <p>Download generated AI SBOM in CycloneDX format</p>
+                <button onclick="downloadJSON()">Download JSON</button>
+            </div>
+
+            {% if enhancement_report and enhancement_report.ai_enhanced %}
+            <div class="improvement">
+                <h3>AI Enhancement Results</h3>
+                <p>This AI SBOM was enhanced using <strong>{{ enhancement_report.ai_model }}</strong></p>
+                <p>Original Score: {{ enhancement_report.original_score.total_score|round(1) }}/100</p>
+                <p>Enhanced Score: {{ enhancement_report.final_score.total_score|round(1) }}/100</p>
+                <p>Improvement: <span class="improvement-value">+{{ enhancement_report.improvement|round(1) }} points</span></p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Human-friendly AI SBOM Viewer -->
+        <div class="note-box">
+            <p><strong>Note:</strong> This page displays the AI SBOM in a human-friendly format for easier readability. 
+            The downloaded JSON file follows the standard CycloneDX format required for interoperability with other tools.</p>
+        </div>
+        
+        <div class="aibom-tabs">
+            <div class="aibom-tab active" onclick="switchTab('human-view')">Human-Friendly View</div>
+            <div class="aibom-tab" onclick="switchTab('json-view')">JSON View</div>
+            <div class="aibom-tab" onclick="switchTab('field-checklist')">Field Checklist</div>
+            <div class="aibom-tab" onclick="switchTab('score-view')">Score Report</div>
+        </div>
+
+        <div id="human-view" class="tab-content active">
+            <div class="aibom-viewer">
+                <!-- Key Information Section -->
+                <div class="aibom-section key-info">
+                    <h4>Key Information</h4>
+                    <div class="aibom-property">
+                        <div class="property-name">Model Name:</div>
+                        <div class="property-value">{{ aibom.components[0].name if aibom.components and aibom.components[0].name else 'Not specified' }}</div>
+                    </div>
+                    <div class="aibom-property">
+                        <div class="property-name">Type:</div>
+                        <div class="property-value">{{ aibom.components[0].type if aibom.components and aibom.components[0].type else 'Not specified' }}</div>
+                    </div>
+                    <div class="aibom-property">
+                        <div class="property-name">Version:</div>
+                        <div class="property-value">{{ aibom.components[0].version if aibom.components and aibom.components[0].version else 'Not specified' }}</div>
+                    </div>
+                    <div class="aibom-property">
+                        <div class="property-name">PURL:</div>
+                        <div class="property-value">{{ aibom.components[0].purl if aibom.components and aibom.components[0].purl else 'Not specified' }}</div>
+                    </div>
+                    {% if aibom.components and aibom.components[0].description %}
+                    <div class="aibom-property">
+                        <div class="property-name">Description:</div>
+                        <div class="property-value">{{ aibom.components[0].description }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Model Card Section -->
+                {% if aibom.components and aibom.components[0].modelCard %}
+                <div class="aibom-section">
+                    <h4 class="collapsible" onclick="toggleCollapsible(this)">Model Card</h4>
+                    <div class="collapsible-content">
+                        {% if aibom.components[0].modelCard.modelParameters %}
+                        <div class="aibom-property">
+                            <div class="property-name">Model Parameters:</div>
+                            <div class="property-value">
+                                <ul>
+                                    {% for key, value in aibom.components[0].modelCard.modelParameters.items() %}
+                                    <li><strong>{{ key }}:</strong> {{ value }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if aibom.components[0].modelCard.considerations %}
+                        <div class="aibom-property">
+                            <div class="property-name">Considerations:</div>
+                            <div class="property-value">
+                                <ul>
+                                    {% for key, value in aibom.components[0].modelCard.considerations.items() %}
+                                    <li><strong>{{ key }}:</strong> {{ value }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- External References Section -->
+                {% if aibom.components and aibom.components[0].externalReferences %}
+                <div class="aibom-section">
+                    <h4 class="collapsible" onclick="toggleCollapsible(this)">External References</h4>
+                    <div class="collapsible-content">
+                        <ul>
+                            {% for ref in aibom.components[0].externalReferences %}
+                            <li>
+                                <strong>{{ ref.type }}:</strong> 
+                                <a href="{{ ref.url }}" target="_blank">{{ ref.url }}</a>
+                                {% if ref.comment %}
+                                <br><em>{{ ref.comment }}</em>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="json-view" class="tab-content">
+            <div class="json-view">
+                <pre>{{ aibom | tojson(indent=2) }}</pre>
+            </div>
+        </div>
+
+        <div id="field-checklist" class="tab-content">
+            <div class="content-section">
+                <h3>Field Checklist</h3>
+                
+                <!-- Field Tier Legend -->
+                <div class="tier-legend">
+                    <div class="tier-legend-item">
+                        <span class="field-tier tier-critical"></span>
+                        <span>Critical</span>
+                    </div>
+                    <div class="tier-legend-item">
+                        <span class="field-tier tier-important"></span>
+                        <span>Important</span>
+                    </div>
+                    <div class="tier-legend-item">
+                        <span class="field-tier tier-supplementary"></span>
+                        <span>Supplementary</span>
+                    </div>
+                </div>
+                
+                <ul>
+                    {% for field, status in completeness_score.field_checklist.items() %}
+                        {% if "✔" in status %}
+                            <li>
+                                <span class="check-mark">✔</span>
+                                <span class="field-name">{{ field }}</span>
+                                <span class="field-stars">{{ status.split('✔')[1] }}</span>
+                                {% if completeness_score.field_tiers and field in completeness_score.field_tiers %}
+                                    <span class="field-tier tier-{{ completeness_score.field_tiers[field] }}"></span>
+                                {% endif %}
+                            </li>
+                        {% else %}
+                            <li>
+                                <span class="x-mark">✘</span>
+                                <span class="field-name">{{ field }}</span>
+                                <span class="field-stars">{{ status.split('✘')[1] }}</span>
+                                {% if completeness_score.field_tiers and field in completeness_score.field_tiers %}
+                                    <span class="field-tier tier-{{ completeness_score.field_tiers[field] }}"></span>
+                                {% endif %}
+                                
+                                {% if field == "component.description" %}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">A detailed description of the model is essential for users to understand its purpose and capabilities. Add a description that is at least 20 characters long.</span>
+                                    </span>
+                                {% elif field == "component.purl" %}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">Package URL (PURL) is critical for uniquely identifying the model. It should follow the format pkg:huggingface/[owner]/[name]@[version].</span>
+                                    </span>
+                                {% elif field == "modelCard.modelParameters" %}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">Model parameters provide essential technical details about the model architecture, training, and capabilities.</span>
+                                    </span>
+                                {% elif field == "modelCard.considerations" %}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">Considerations section should include ethical considerations, limitations, and risks associated with the model.</span>
+                                    </span>
+                                {% elif field == "externalReferences" %}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">External references provide links to additional resources like model cards, repositories, and datasets.</span>
+                                    </span>
+                                {% else %}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">This field contributes to the completeness of your AI SBOM.</span>
+                                    </span>
+                                {% endif %}
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+
+        <div id="score-view" class="tab-content">
+            <div class="content-section">
+                <h3>AI SBOM Completeness Score</h3>
+                
+                <!-- Completeness Profile Section -->
+                {% if completeness_score.completeness_profile %}
+                <div class="completeness-profile">
+                    <h4>Completeness Profile: 
+                        <span class="profile-badge profile-{{ completeness_score.completeness_profile.name|lower }}">
+                            {{ completeness_score.completeness_profile.name }}
+                        </span>
+                    </h4>
+                    <p>{{ completeness_score.completeness_profile.description }}</p>
+                    
+                    {% if completeness_score.completeness_profile.next_level %}
+                    <p><strong>Next level:</strong> {{ completeness_score.completeness_profile.next_level.name }} 
+                       ({{ completeness_score.completeness_profile.next_level.missing_fields_count }} fields to add)</p>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                <!-- Total Score with Progress Bar -->
+                <div class="total-score-container">
+                    <div class="total-score">{{ completeness_score.total_score|round(1) }}/100</div>
+                    <div class="total-progress">
+                        <div class="progress-container">
+                            {% set score_percent = (completeness_score.total_score / 100) * 100 %}
+                            {% set score_class = 'progress-poor' %}
+                            {% set score_label = 'Poor' %}
+                            
+                            {% if score_percent >= 90 %}
+                                {% set score_class = 'progress-excellent' %}
+                                {% set score_label = 'Excellent' %}
+                            {% elif score_percent >= 70 %}
+                                {% set score_class = 'progress-good' %}
+                                {% set score_label = 'Good' %}
+                            {% elif score_percent >= 50 %}
+                                {% set score_class = 'progress-fair' %}
+                                {% set score_label = 'Fair' %}
+                            {% endif %}
+                            
+                            <div class="progress-bar {{ score_class }}" style="width: {{ score_percent }}%">
+                                {{ score_percent|int }}% {{ score_label }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Validation Penalty Explanation -->
+                {% if completeness_score.validation_penalty %}
+                <div class="validation-penalty-info">
+                    <h4>About the Validation Penalty</h4>
+                    <p>Your score includes a penalty because the AIBOM has schema validation issues. These are structural problems that don't comply with the CycloneDX specification requirements.</p>
+                    <p><strong>How to fix this:</strong> Look at the "Fix Validation Issues" section in the recommendations below. Fixing these issues will remove the penalty and improve your overall score.</p>
+                </div>
+                {% endif %}
+                
+                <!-- Section Scores with Progress Bars and Tooltips -->
+                <table class="score-table">
+                    <thead>
+                        <tr>
+                            <th>Section</th>
+                            <th>Score</th>
+                            <th>Weight</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set weights = {'required_fields': 20, 'metadata': 20, 'component_basic': 20, 'component_model_card': 30, 'external_references': 10} %}
+                        {% set tooltips = {
+                            'required_fields': 'Basic SBOM fields required by the CycloneDX specification: bomFormat, specVersion, serialNumber, and version.',
+                            'metadata': 'Information about the AI SBOM itself: timestamp, tools used to generate it, authors, and component metadata.',
+                            'component_basic': 'Basic information about the AI model: type, name, bom-ref, PURL, description, and licenses.',
+                            'component_model_card': 'Detailed information about the model: parameters, quantitative analysis, and ethical considerations.',
+                            'external_references': 'Links to external resources like model cards, repositories, and datasets.'
+                        } %}
+                        {% set display_names = {
+                            'required_fields': 'Required Fields',
+                            'metadata': 'Metadata',
+                            'component_basic': 'Component Basic',
+                            'component_model_card': 'Model Card',
+                            'external_references': 'External References'
+                        } %}
+                        {% for section, score in completeness_score.section_scores.items() %}
+                            <tr>
+                                <td>
+                                    {{ display_names[section] }}
+                                    <span class="tooltip">(?)
+                                        <span class="tooltiptext">{{ tooltips[section] }}</span>
+                                    </span>
+                                </td>
+                                <td>{{ score|round(1) }}/{{ completeness_score.max_scores[section] }}</td>
+                                <td>{{ weights[section] }}%</td>
+                                <td style="width: 50%;">
+                                    <div class="progress-container">
+                                        {% set percent = (score / completeness_score.max_scores[section]) * 100 %}
+                                        {% set class = 'progress-poor' %}
+                                        
+                                        {% if percent >= 90 %}
+                                            {% set class = 'progress-excellent' %}
+                                        {% elif percent >= 70 %}
+                                            {% set class = 'progress-good' %}
+                                        {% elif percent >= 50 %}
+                                            {% set class = 'progress-fair' %}
+                                        {% endif %}
+                                        
+                                        <div class="progress-bar {{ class }}" style="width: {{ percent }}%">
+                                            {{ percent|int }}%
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                
+                <!-- How the Overall Score is Calculated Section -->
+                <div class="score-calculation">
+                    <h3>How the Overall Score is Calculated</h3>
+                    
+                    <!-- Missing Fields Section -->
+                    <div class="calculation-section missing-fields">
+                        <h4>Critical Missing Fields</h4>
+                        <p>The following fields are missing or incomplete and have the biggest impact on your score:</p>
+                        <ul>
+                            {% set missing_critical = [] %}
+                            {% for field, status in completeness_score.field_checklist.items() %}
+                                {% if "✘" in status %}
+                                    {% if completeness_score.field_tiers and field in completeness_score.field_tiers and completeness_score.field_tiers[field] == 'critical' %}
+                                        {% set _ = missing_critical.append(field) %}
+                                        <li>
+                                            <strong>{{ field }}</strong>
+                                            <span class="field-tier tier-critical"></span>
+                                            {% if field == "component.description" %}
+                                                - Add a detailed description of the model (at least 20 characters)
+                                            {% elif field == "component.purl" %}
+                                                - Add a valid PURL in the format pkg:huggingface/[owner]/[name]@[version]
+                                            {% elif field == "modelCard.modelParameters" %}
+                                                - Add model parameters section with architecture, size, and training details
+                                            {% elif field == "primaryPurpose" %}
+                                                - Add primary purpose information (what the model is designed for)
+                                            {% else %}
+                                                - This field is required for comprehensive documentation
+                                            {% endif %}
+                                        </li>
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                            {% if missing_critical|length == 0 %}
+                                <li>No critical fields are missing. Great job!</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    
+                    <!-- Recommendations Section -->
+                    <div class="calculation-section recommendations">
+                        <h4>Recommendations to Improve Your Score</h4>
+                        <ol>
+                            {% if completeness_score.section_scores.component_model_card < completeness_score.max_scores.component_model_card %}
+                                <li>
+                                    <strong>Enhance Model Card</strong> (+{{ ((completeness_score.max_scores.component_model_card - completeness_score.section_scores.component_model_card) * 0.3)|round(1) }} points):
+                                    <ul>
+                                        {% if completeness_score.missing_fields.critical %}
+                                            {% for field in completeness_score.missing_fields.critical %}
+                                                {% if field == "modelCard.modelParameters" or field == "modelCard.considerations" %}
+                                                    <li>Add {{ field }} information</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+                            
+                            {% if completeness_score.section_scores.component_basic < completeness_score.max_scores.component_basic %}
+                                <li>
+                                    <strong>Add Basic Component Information</strong> (+{{ ((completeness_score.max_scores.component_basic - completeness_score.section_scores.component_basic) * 0.2)|round(1) }} points):
+                                    <ul>
+                                        {% if completeness_score.missing_fields.critical %}
+                                            {% for field in completeness_score.missing_fields.critical %}
+                                                {% if field == "name" or field == "description" or field == "purl" %}
+                                                    <li>Add {{ field }} information</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                        {% if completeness_score.missing_fields.important %}
+                                            {% for field in completeness_score.missing_fields.important %}
+                                                {% if field == "type" or field == "licenses" %}
+                                                    <li>Add {{ field }} information</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+                            
+                            {% if completeness_score.section_scores.metadata < completeness_score.max_scores.metadata %}
+                                <li>
+                                    <strong>Add Metadata</strong> (+{{ ((completeness_score.max_scores.metadata - completeness_score.section_scores.metadata) * 0.2)|round(1) }} points):
+                                    <ul>
+                                        {% if completeness_score.missing_fields.critical %}
+                                            {% for field in completeness_score.missing_fields.critical %}
+                                                {% if field == "primaryPurpose" or field == "suppliedBy" %}
+                                                    <li>Add {{ field }} information</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                        {% if completeness_score.missing_fields.supplementary %}
+                                            {% for field in completeness_score.missing_fields.supplementary %}
+                                                {% if field == "standardCompliance" or field == "domain" or field == "autonomyType" %}
+                                                    <li>Add {{ field }} information</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+                            
+                            {% if completeness_score.section_scores.external_references < completeness_score.max_scores.external_references %}
+                                <li>
+                                    <strong>Add External References</strong> (+{{ ((completeness_score.max_scores.external_references - completeness_score.section_scores.external_references) * 0.1)|round(1) }} points):
+                                    <ul>
+                                        {% if completeness_score.missing_fields.critical %}
+                                            {% for field in completeness_score.missing_fields.critical %}
+                                                {% if field == "downloadLocation" %}
+                                                    <li>Add download location reference</li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                        <li>Add links to model card, repository, and dataset</li>
+                                    </ul>
+                                </li>
+                            {% endif %}
+                            
+                            {% if completeness_score.validation and not completeness_score.validation.valid %}
+                                <li>
+                                    <strong>Fix Validation Issues</strong> (remove validation penalty):
+                                    <ul>
+                                        {% for recommendation in completeness_score.validation.recommendations %}
+                                            <li>{{ recommendation }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+                        </ol>
+                    </div>
+                    
+                    <!-- Scoring Rubric Section -->
+                    <div class="calculation-section scoring-rubric">
+                        <h4>Scoring Rubric</h4>
+                        <p>The overall score is calculated using a weighted category approach:</p>
+                        <p><strong>Total Score = (Sum of (Category Score × Category Weight)) × 100</strong></p>
+                        <p>Where:</p>
+                        <ul>
+                            <li>Category Score = Sum of weights for present fields in that category</li>
+                            <li>Category Weight = Max Category Score ÷ Sum of All Max Category Scores</li>
+                        </ul>
+                        
+                        <p>Fields are classified into three tiers based on importance:</p>
+                        <ul>
+                            <li><span class="field-tier tier-critical"></span> <strong>Critical fields</strong>: Highest weight (3-4 points each)</li>
+                            <li><span class="field-tier tier-important"></span> <strong>Important fields</strong>: Medium weight (2-4 points each)</li>
+                            <li><span class="field-tier tier-supplementary"></span> <strong>Supplementary fields</strong>: Lower weight (1-2 points each)</li>
+                        </ul>
+                        
+                        <p>Penalties are applied for missing critical fields:</p>
+                        <ul>
+                            <li>Missing >3 critical fields: 20% penalty (score × 0.8)</li>
+                            <li>Missing 1-3 critical fields: 10% penalty (score × 0.9)</li>
+                            <li>Missing >5 important fields: 5% penalty (score × 0.95)</li>
+                        </ul>
+                        
+                        {% if completeness_score.validation_penalty %}
+                        <p>Additional penalties are applied based on validation results:</p>
+                        <ul>
+                            <li>Schema errors: Up to 50% reduction (10% per error)</li>
+                            <li>Schema warnings: Up to 20% reduction (5% per warning)</li>
+                        </ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            // Hide all tab contents
+            var tabContents = document.getElementsByClassName('tab-content');
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].classList.remove('active');
+            }
+            
+            // Deactivate all tabs
+            var tabs = document.getElementsByClassName('aibom-tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            
+            // Activate the selected tab and content
+            document.getElementById(tabId).classList.add('active');
+            var selectedTab = document.querySelector('.aibom-tab[onclick="switchTab(\'' + tabId + '\')"]');
+            selectedTab.classList.add('active');
+        }
+        
+        function toggleCollapsible(element) {
+            element.classList.toggle('active');
+            var content = element.nextElementSibling;
+            content.classList.toggle('active');
+            
+            if (content.classList.contains('active')) {
+                content.style.maxHeight = content.scrollHeight + 'px';
+            } else {
+                content.style.maxHeight = '0';
+            }
+        }
+        
+        function downloadJSON() {
+            var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({{ aibom|tojson }}, null, 2));
+            var downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "{{ model_id|replace('/', '_') }}_aibom.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+        
+        // Initialize collapsible sections
+        document.addEventListener('DOMContentLoaded', function() {
+            var collapsibles = document.getElementsByClassName('collapsible');
+            for (var i = 0; i < collapsibles.length; i++) {
+                toggleCollapsible(collapsibles[i]);
+            }
+        });
+    </script>
+</body>
+</html>
