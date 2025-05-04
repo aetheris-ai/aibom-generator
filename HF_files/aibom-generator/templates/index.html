@@ -33,11 +33,23 @@
             height: 60px;
             margin-right: 15px;
         }
+        /* Added header-content div for layout */
+        .header .header-content {
+            display: flex;
+            flex-direction: column; /* Stack title and count */
+        }
         .header h1 {
             margin: 0;
             font-size: 28px;
             color: #2c3e50;
             font-weight: 600;
+            margin-bottom: 5px; /* Space between title and count */
+        }
+        /* Added style for sbom-count */
+        .header .sbom-count {
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
         }
         
         /* Content styling */
@@ -116,6 +128,12 @@
             background-color: #2980b9;
         }
         
+        /* Style for disabled button */
+        button:disabled {
+            background-color: #bdc3c7; /* Lighter grey */
+            cursor: not-allowed;
+        }
+        
         code {
             background-color: #f8f9fa;
             padding: 2px 5px;
@@ -136,13 +154,16 @@
     </style>
 </head>
 <body>
-    <!-- Header with logo and title -->
+    <!-- Header with logo, title, and SBOM count -->
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <a href="https://aetheris.ai/" target="_blank">
-                <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
-            </a>
+        <a href="https://aetheris.ai/" target="_blank">
+            <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
+        </a>
+        <!-- Added header-content div -->
+        <div class="header-content">
             <h1>AI SBOM Generator</h1>
+            <!-- Display the SBOM count -->
+            <div class="sbom-count">Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>
         </div>
     </div>
     
@@ -153,9 +174,11 @@
             <p>
                 Enter a model on Hugging Face, in a format <code>&lt;organization-or-username&gt;/&lt;model-name&gt;</code> to generate AI SBOM in CycloneDX format. You can browse available models in the <a href="https://huggingface.co/models" target="_blank" rel="noopener noreferrer">Hugging Face models repository</a>.
             </p>
-            <form action="/generate" method="post">
+            <!-- Added id="sbom-form" to the form -->
+            <form id="sbom-form" action="/generate" method="post">
                 <input type="text" name="model_id" placeholder="e.g., openai/whisper-tiny" required>
-                <button type="submit">Generate AI SBOM</button>
+                <!-- Added id="generate-button" to the button -->
+                <button id="generate-button" type="submit">Generate AI SBOM</button>
             </form>
         </div>
         
@@ -194,5 +217,16 @@
             <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
         </div>
     </div>
+
+    <!-- JavaScript for loading indicator -->
+    <script>
+        document.getElementById('sbom-form').addEventListener('submit', function() {
+            var button = document.getElementById('generate-button');
+            button.disabled = true;
+            button.textContent = 'Generating...'; // Change button text
+            // Optionally add a spinner icon here if desired
+        });
+    </script>
+
 </body>
 </html>

@@ -39,7 +39,26 @@
             color: #2c3e50;
             font-weight: 600;
         }
-        
+
+        /* header-content div for layout */
+        .header .header-content {
+            display: flex;
+            flex-direction: column; /* Stack title and count */
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 5px; /* Space between title and count */
+        }
+        /* Added style for sbom-count */
+        .header .sbom-count {
+            font-size: 14px;
+            color: #555;
+            font-weight: 500;
+        }
+
         /* Content styling */
         .content-section {
             background-color: #ffffff;
@@ -582,15 +601,19 @@
     </style>
 </head>
 <body>
-    <!-- Header with logo and title -->
+    <!-- Header with logo, title, and SBOM count -->
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <a href="https://aetheris.ai/" target="_blank">
-                <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
-            </a>
+        <a href="https://aetheris.ai/" target="_blank">
+            <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
+        </a>
+        <!-- Added header-content div -->
+        <div class="header-content">
             <h1>AI SBOM Generator</h1>
+            <!-- Display the SBOM count -->
+            <div class="sbom-count">Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>
         </div>
     </div>
+
     
     <div class="container">
         <div class="content-section">
@@ -1072,7 +1095,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="content-section" style="text-align: center;">
             <h3>🗣️ Help Us Spread the Word</h3>
             <p>If you find this tool useful, share it with your network! <a href="https://sbom.aetheris.ai" target="_blank" rel="noopener noreferrer">https://sbom.aetheris.ai</a></p>
@@ -1084,7 +1107,7 @@
                 <a href="https://www.linkedin.com/company/aetheris-ai" target="_blank" rel="noopener noreferrer">@Aetheris AI</a>
             </p>
         </div>
-
+                              
         <!-- Footer -->
         <div class="footer">
             <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
