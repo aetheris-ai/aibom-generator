@@ -12,12 +12,17 @@ from datetime import datetime
 from datasets import Dataset, load_dataset, concatenate_datasets
 import os
 import logging
+from urllib.parse import urlparse
+import re # Import regex module
+import html # Import html module for escaping
+from huggingface_hub import HfApi
+from huggingface_hub.utils import RepositoryNotFoundError # For specific error handling
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Add Counter Configuration ---
+# --- Add Counter Configuration (as of May 3, 2025) ---
 HF_REPO = "aetheris-ai/aisbom-usage-log"  # User needs to create this private repo
 HF_TOKEN = os.getenv("HF_TOKEN")  # User must set this environment variable
 # --- End Counter Configuration ---
@@ -44,6 +49,52 @@ class StatusResponse(BaseModel):
     version: str
     generator_version: str
 
+
+# --- Model ID Validation and Normalization Helpers --- 
+# Regex for valid Hugging Face ID parts (alphanumeric, -, _, .)
+# Allows owner/model format
+HF_ID_REGEX = re.compile(r"^[a-zA-Z0-9\.\-\_]+/[a-zA-Z0-9\.\-\_]+$")
+
+def is_valid_hf_input(input_str: str) -> bool:
+    """Checks if the input is a valid Hugging Face model ID or URL."""
+    if not input_str or len(input_str) > 200: # Basic length check
+        return False
+        
+    if input_str.startswith(("http://", "https://") ):
+        try:
+            parsed = urlparse(input_str)
+            # Check domain and path structure
+            if parsed.netloc == "huggingface.co":
+                path_parts = parsed.path.strip("/").split("/")
+                # Must have at least owner/model, can have more like /tree/main
+                if len(path_parts) >= 2 and path_parts[0] and path_parts[1]:
+                     # Check characters in the relevant parts
+                     if re.match(r"^[a-zA-Z0-9\.\-\_]+$", path_parts[0]) and \
+                        re.match(r"^[a-zA-Z0-9\.\-\_]+$", path_parts[1]):
+                         return True
+            return False # Not a valid HF URL format
+        except Exception:
+            return False # URL parsing failed
+    else:
+        # Assume owner/model format, check with regex
+        return bool(HF_ID_REGEX.match(input_str))
+
+def _normalise_model_id(raw_id: str) -> str:
+    """
+    Accept either validated 'owner/model' or a validated full URL like
+    'https://huggingface.co/owner/model'. Return 'owner/model'.
+    Assumes input has already been validated by is_valid_hf_input.
+    """
+    if raw_id.startswith(("http://", "https://") ):
+        path = urlparse(raw_id).path.lstrip("/")
+        parts = path.split("/")
+        # We know from validation that parts[0] and parts[1] exist
+        return f"{parts[0]}/{parts[1]}"
+    return raw_id # Already in owner/model format
+
+# --- End Model ID Helpers ---
+
+
 # --- Add Counter Helper Functions ---
 def log_sbom_generation(model_id: str):
     """Logs a successful SBOM generation event to the Hugging Face dataset."""
@@ -52,10 +103,12 @@ def log_sbom_generation(model_id: str):
         return
 
     try:
+        # Normalize model_id before logging
+        normalized_model_id_for_log = _normalise_model_id(model_id) # added to normalize id
         log_data = {
             "timestamp": [datetime.utcnow().isoformat()],
             "event": ["generated"],
-            "model_id": [model_id] # Log the model ID
+            "model_id": [normalized_model_id_for_log] # use normalized_model_id_for_log
         }
         ds_new_log = Dataset.from_dict(log_data)
 
@@ -85,7 +138,7 @@ def log_sbom_generation(model_id: str):
         # Push the updated or new dataset
         # Corrected: Removed unnecessary backslash in it's
         ds_to_push.push_to_hub(HF_REPO, token=HF_TOKEN, private=True) # Ensure it's private
-        logger.info(f"Successfully logged SBOM generation for {model_id} to {HF_REPO}")
+        logger.info(f"Successfully logged SBOM generation for {normalized_model_id_for_log} to {HF_REPO}") # use normalized model id
 
     except Exception as e:
         logger.error(f"Failed to log SBOM generation to {HF_REPO}: {e}")
@@ -351,6 +404,45 @@ async def generate_form(
     use_best_practices: bool = Form(True)
 ):
     sbom_count = get_sbom_count() # Get count early for context
+    
+    
+    # --- Input Sanitization --- 
+    sanitized_model_id = html.escape(model_id)
+    
+    # --- Input Format Validation --- 
+    if not is_valid_hf_input(sanitized_model_id):
+        error_message = "Invalid input format. Please provide a valid Hugging Face model ID (e.g., 'owner/model') or a full model URL (e.g., 'https://huggingface.co/owner/model') ."
+        logger.warning(f"Invalid model input format received: {model_id}") # Log original input
+        # Try to display sanitized input in error message
+        return templates.TemplateResponse(
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_model_id}
+        )
+        
+    # --- Normalize the SANITIZED and VALIDATED model ID --- 
+    normalized_model_id = _normalise_model_id(sanitized_model_id)
+    
+    # --- Check if the ID corresponds to an actual HF Model --- 
+    try:
+        hf_api = HfApi()
+        logger.info(f"Attempting to fetch model info for: {normalized_model_id}")
+        model_info = hf_api.model_info(normalized_model_id)
+        logger.info(f"Successfully fetched model info for: {normalized_model_id}")
+    except RepositoryNotFoundError:
+        error_message = f"Error: The provided ID \"{normalized_model_id}\" could not be found on Hugging Face or does not correspond to a model repository."
+        logger.warning(f"Repository not found for ID: {normalized_model_id}")
+        return templates.TemplateResponse(
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": normalized_model_id}
+        )
+    except Exception as api_err: # Catch other potential API errors
+        error_message = f"Error verifying model ID with Hugging Face API: {str(api_err)}"
+        logger.error(f"HF API error for {normalized_model_id}: {str(api_err)}")
+        return templates.TemplateResponse(
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": normalized_model_id}
+        )
+    # --- End Model Existence Check ---
+
+    
+    # --- Main Generation Logic --- 
     try:
         # Try different import paths for AIBOMGenerator
         generator = None
@@ -369,31 +461,31 @@ async def generate_form(
                     logger.error("Could not import AIBOMGenerator from any known location")
                     raise ImportError("Could not import AIBOMGenerator from any known location")
 
-        # Generate AIBOM
+        # Generate AIBOM (pass SANITIZED ID)
         aibom = generator.generate_aibom(
-            model_id=model_id,
+            model_id=sanitized_model_id, # Use sanitized ID
             include_inference=include_inference,
             use_best_practices=use_best_practices
         )
         enhancement_report = generator.get_enhancement_report()
 
-        # Save AIBOM to file
+        # Save AIBOM to file, use industry term ai_sbom in file name
         # Corrected: Removed unnecessary backslashes around '/' and '_'
-        filename = f"{model_id.replace('/', '_')}_aibom.json"
+        # Save AIBOM to file using normalized ID
+        filename = f"{normalized_model_id.replace('/', '_')}_ai_sbom.json"
         filepath = os.path.join(OUTPUT_DIR, filename)
 
         with open(filepath, "w") as f:
             json.dump(aibom, f, indent=2)
 
         # --- Log Generation Event ---
-        log_sbom_generation(model_id)
+        log_sbom_generation(sanitized_model_id) # Use sanitized ID
         sbom_count = get_sbom_count() # Refresh count after logging
         # --- End Log ---
 
         download_url = f"/output/{filename}"
 
         # Create download and UI interaction scripts
-        # Corrected: Removed unnecessary backslashes in script string
         download_script = f"""
         <script>
             function downloadJSON() {{
@@ -438,17 +530,16 @@ async def generate_form(
         """
 
         # Get completeness score or create a comprehensive one if not available
+        # Use sanitized_model_id
         completeness_score = None
-        # Corrected: Removed unnecessary backslash in 'get_completeness_score'
         if hasattr(generator, 'get_completeness_score'):
             try:
-                completeness_score = generator.get_completeness_score(model_id)
+                completeness_score = generator.get_completeness_score(sanitized_model_id)
                 logger.info("Successfully retrieved completeness_score from generator")
             except Exception as e:
                 logger.error(f"Completeness score error from generator: {str(e)}")
 
         # If completeness_score is None or doesn't have field_checklist, use comprehensive one
-        # Corrected: Removed unnecessary backslash in doesn't and 'field_checklist'
         if completeness_score is None or not isinstance(completeness_score, dict) or 'field_checklist' not in completeness_score:
             logger.info("Using comprehensive completeness_score with field_checklist")
             completeness_score = create_comprehensive_completeness_score(aibom)
@@ -500,12 +591,12 @@ async def generate_form(
             "external_references": 10
         }
 
-        # Render the template with all necessary data
+        # Render the template with all necessary data, with normalized model ID
         return templates.TemplateResponse(
             "result.html",
             {
                 "request": request,
-                "model_id": model_id,
+                "model_id": normalized_model_id,
                 "aibom": aibom,
                 "enhancement_report": enhancement_report,
                 "completeness_score": completeness_score,
@@ -514,15 +605,19 @@ async def generate_form(
                 "display_names": display_names,
                 "tooltips": tooltips,
                 "weights": weights,
-                "sbom_count": sbom_count # Pass count
+                "sbom_count": sbom_count,
+                "display_names": display_names,
+                "tooltips": tooltips,
+                "weights": weights
             }
         )
+    # --- Main Exception Handling --- 
     except Exception as e:
         logger.error(f"Error generating AI SBOM: {str(e)}")
-        # Ensure count is passed to error template as well
         sbom_count = get_sbom_count() # Refresh count just in case
+        # Pass count, added normalized model ID
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": str(e), "sbom_count": sbom_count} # Pass count
+            "error.html", {"request": request, "error": str(e), "sbom_count": sbom_count, "model_id": normalized_model_id}
         )
 
 @app.get("/download/{filename}")

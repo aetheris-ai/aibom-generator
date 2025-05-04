@@ -609,8 +609,6 @@
         <!-- Added header-content div -->
         <div class="header-content">
             <h1>AI SBOM Generator</h1>
-            <!-- Display the SBOM count -->
-            <div class="sbom-count">Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>
         </div>
     </div>
 
@@ -1107,12 +1105,18 @@
                 <a href="https://www.linkedin.com/company/aetheris-ai" target="_blank" rel="noopener noreferrer">@Aetheris AI</a>
             </p>
         </div>
+
+         <!-- Info Section -->
+        <div class="content-section" style="text-align: center;>
+            <!-- Display the SBOM count -->
+            <div class="sbom-count">🚀 Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
+        </div>
                               
         <!-- Footer -->
         <div class="footer">
             <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
         </div>
-    </div>
+   </div>
 
     <script>
         function switchTab(tabId) {

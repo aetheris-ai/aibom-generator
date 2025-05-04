@@ -182,8 +182,6 @@
         <!-- Added header-content div -->
         <div class="header-content">
             <h1>AI SBOM Generator</h1>
-            <!-- Display the SBOM count -->
-            <div class="sbom-count">Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>
         </div>
     </div>
     
@@ -202,7 +200,13 @@
             <h2>Need Help?</h2>
             <p>If the error persists, please log an issue on our <a href="https://github.com/aetheris-ai/aibom-generator/issues" target="_blank" rel="noopener noreferrer">GitHub issues page</a>. Include the error message above and any additional details that might help us troubleshoot the problem.</p>
         </div>
-        
+      
+        <!-- Info Section -->
+        <div class="content-section" style="text-align: center;>
+            <!-- Display the SBOM count -->
+            <div class="sbom-count">🚀 Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
+        </div>
+  
         <!-- Footer -->
         <div class="footer">
             <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>

@@ -162,8 +162,6 @@
         <!-- Added header-content div -->
         <div class="header-content">
             <h1>AI SBOM Generator</h1>
-            <!-- Display the SBOM count -->
-            <div class="sbom-count">Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>
         </div>
     </div>
     
@@ -172,7 +170,7 @@
         <div class="form-section">
             <h2>Generate Your AI SBOM</h2>
             <p>
-                Enter a model on Hugging Face, in a format <code>&lt;organization-or-username&gt;/&lt;model-name&gt;</code> to generate AI SBOM in CycloneDX format. You can browse available models in the <a href="https://huggingface.co/models" target="_blank" rel="noopener noreferrer">Hugging Face models repository</a>.
+                Enter a model on Hugging Face, in a format <code>&lt;organization-or-username&gt;/&lt;model-name&gt;</code> (easy copy button), or model's URL, to generate AI SBOM in CycloneDX format. You can browse available models in the <a href="https://huggingface.co/models" target="_blank" rel="noopener noreferrer">Hugging Face models repository</a>.
             </p>
             <!-- Added id="sbom-form" to the form -->
             <form id="sbom-form" action="/generate" method="post">
@@ -199,7 +197,8 @@
             <h2>Feedback</h2>
             <p>For feedback or improvement requests please create a <a href="https://github.com/aetheris-ai/aibom-generator/issues" target="_blank" rel="noopener noreferrer">GitHub issue</a>.</p>
         </div>
-        
+
+        <!-- Social Section -->
         <div class="content-section" style="text-align: center;">
             <h3>🗣️ Help Us Spread the Word</h3>
             <p>If you find this tool useful, share it with your network! <a href="https://sbom.aetheris.ai" target="_blank" rel="noopener noreferrer">https://sbom.aetheris.ai</a></p>
@@ -212,6 +211,12 @@
             </p>
         </div>
 
+        <!-- Info Section -->
+        <div class="content-section" style="text-align: center;>
+            <!-- Display the SBOM count -->
+            <div class="sbom-count">🚀 Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
+        </div>
+      
         <!-- Footer -->
         <div class="footer">
             <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
