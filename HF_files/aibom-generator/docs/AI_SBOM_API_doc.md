@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI SBOM Generator API provides a comprehensive solution for generating CycloneDX-compliant AI Bill of Materials (AIBOM) for Hugging Face models. This document outlines the available API endpoints, their functionality, and how to interact with them using cURL commands.
+The AI SBOM Generator API provides a comprehensive solution for generating CycloneDX-compliant AI Bill of Materials (AI SBOM) for Hugging Face models. This document outlines the available API endpoints, their functionality, and how to interact with them using cURL commands.
 
 ## Base URL
 
@@ -37,7 +37,7 @@ curl -X GET "https://aetheris-ai-aibom-generator.hf.space/status"
 }
 ```
 
-### Generate AIBOM Endpoint
+### Generate AI SBOM Endpoint
 
 **Purpose**: Generate an AI SBOM for a specified Hugging Face model.
 
@@ -62,7 +62,7 @@ curl -X POST "https://aetheris-ai-aibom-generator.hf.space/api/generate" \
   }'
 ```
 
-**Expected Response**: JSON containing the generated AIBOM, model ID, timestamp, and download URL.
+**Expected Response**: JSON containing the generated AI SBOM, model ID, timestamp, and download URL.
 ```json
 {
   "aibom": {
@@ -81,7 +81,7 @@ curl -X POST "https://aetheris-ai-aibom-generator.hf.space/api/generate" \
 }
 ```
 
-### Generate AIBOM with Enhancement Report
+### Generate AI SBOM with Enhancement Report
 
 **Purpose**: Generate an AI SBOM with a detailed enhancement report.
 
@@ -102,7 +102,7 @@ curl -X POST "https://aetheris-ai-aibom-generator.hf.space/api/generate-with-rep
   }'
 ```
 
-**Expected Response**: JSON containing the generated AIBOM, model ID, timestamp, download URL, and enhancement report.
+**Expected Response**: JSON containing the generated AI SBOM, model ID, timestamp, download URL, and enhancement report.
 ```json
 {
   "aibom": { ... },
@@ -128,7 +128,7 @@ curl -X POST "https://aetheris-ai-aibom-generator.hf.space/api/generate-with-rep
 
 ### Get Model Score
 
-**Purpose**: Get the completeness score for a model without generating a full AIBOM.
+**Purpose**: Get the completeness score for a model without generating a full AI SBOM.
 
 **Endpoint**: `/api/models/{model_id}/score`
 
@@ -165,95 +165,16 @@ curl -X GET "https://aetheris-ai-aibom-generator.hf.space/api/models/meta-llama/
 }
 ```
 
-### Batch Generate AIBOMs
+### Download Generated AI SBOM
 
-**Purpose**: Start a batch job to generate AIBOMs for multiple models.
-
-**Endpoint**: `/api/batch`
-
-**Method**: POST
-
-**Parameters**:
-- `model_ids` (required): List of Hugging Face model IDs to generate AIBOMs for
-- `include_inference` (optional): Whether to use AI inference to enhance the AI SBOM (default: true)
-- `use_best_practices` (optional): Whether to use industry best practices for scoring (default: true)
-- `hf_token` (optional): Hugging Face API token for accessing private models
-
-**cURL Example**:
-```bash
-curl -X POST "https://aetheris-ai-aibom-generator.hf.space/api/batch" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model_ids": [
-      "meta-llama/Llama-2-7b-chat-hf",
-      "google/flan-t5-base"
-    ],
-    "include_inference": true,
-    "use_best_practices": true
-  }'
-```
-
-**Expected Response**: JSON containing the batch job ID and status information.
-```json
-{
-  "job_id": "...",
-  "status": "queued",
-  "model_ids": [
-    "meta-llama/Llama-2-7b-chat-hf",
-    "google/flan-t5-base"
-  ],
-  "created_at": "2025-04-24T20:30:00Z"
-}
-```
-
-### Check Batch Job Status
-
-**Purpose**: Check the status of a batch job.
-
-**Endpoint**: `/api/batch/{job_id}`
-
-**Method**: GET
-
-**Parameters**:
-- `job_id` (path parameter): The ID of the batch job to check
-
-**cURL Example**:
-```bash
-curl -X GET "https://aetheris-ai-aibom-generator.hf.space/api/batch/{job_id}"
-```
-
-**Expected Response**: JSON containing the current status of the batch job and results for completed models.
-```json
-{
-  "job_id": "...",
-  "status": "processing",
-  "model_ids": [
-    "meta-llama/Llama-2-7b-chat-hf",
-    "google/flan-t5-base"
-  ],
-  "created_at": "2025-04-24T20:30:00Z",
-  "completed": 1,
-  "total": 2,
-  "results": {
-    "meta-llama/Llama-2-7b-chat-hf": {
-      "status": "completed",
-      "download_url": "/output/meta-llama_Llama-2-7b-chat-hf_....json",
-      "enhancement_report": { ... }
-    }
-  }
-}
-```
-
-### Download Generated AIBOM
-
-**Purpose**: Download a previously generated AIBOM file.
+**Purpose**: Download a previously generated AI SBOM file.
 
 **Endpoint**: `/download/{filename}`
 
 **Method**: GET
 
 **Parameters**:
-- `filename` (path parameter): The filename of the AIBOM to download
+- `filename` (path parameter): The filename of the AI SBOM to download
 
 **cURL Example**:
 ```bash
@@ -261,11 +182,11 @@ curl -X GET "https://aetheris-ai-aibom-generator.hf.space/download/{filename}" \
   -o "downloaded_aibom.json"
 ```
 
-**Expected Response**: The AIBOM JSON file will be downloaded to your local machine.
+**Expected Response**: The AI SBOM JSON file will be downloaded to your local machine.
 
 ### Form-Based Generation (Web UI)
 
-**Purpose**: Generate an AIBOM using form data (typically used by the web UI).
+**Purpose**: Generate an AI SBOM using form data (typically used by the web UI).
 
 **Endpoint**: `/generate`
 
@@ -284,33 +205,47 @@ curl -X POST "https://aetheris-ai-aibom-generator.hf.space/generate" \
   -F "use_best_practices=true"
 ```
 
-**Expected Response**: HTML page with the generated AIBOM results.
+**Expected Response**: HTML page with the generated AI SBOM results.
 
 ## Web UI
 
-The API also provides a web user interface for generating AIBOMs without writing code:
+The API also provides a web user interface for generating AI SBOMs without writing code:
 
 **URL**: `https://aetheris-ai-aibom-generator.hf.space/`
 
 The web UI allows you to:
 1. Enter a Hugging Face model ID
 2. Configure generation options
-3. Generate an AIBOM
+3. Generate an AI SBOM
 4. View the results in a human-friendly format
-5. Download the generated AIBOM as a JSON file
+5. Download the generated AI SBOM as a JSON file
 
 ## Understanding the Field Checklist
 
 In the Field Checklist tab of the results page, you'll see a list of fields with check marks (✔/✘) and stars (★). Here's what they mean:
 
 - **Check marks**:
-  - ✔: Field is present in the AIBOM
-  - ✘: Field is missing from the AIBOM
+  - ✔: Field is present in the AI SBOM
+  - ✘: Field is missing from the AI SBOM
 
 - **Stars** (importance level):
-  - ★★★ (three stars): Critical fields - Essential for a valid and complete AIBOM
+  - ★★★ (three stars): Critical fields - Essential for a valid and complete AI SBOM
   - ★★ (two stars): Important fields - Valuable information that enhances completeness
   - ★ (one star): Supplementary fields - Additional context and details (optional)
+
+## Security Features
+
+The API includes several security features to protect against Denial of Service (DoS) attacks:
+
+1. **Rate Limiting**: Limits the number of requests a single IP address can make within a specific time window.
+
+2. **Concurrency Limiting**: Restricts the total number of simultaneous requests being processed to prevent resource exhaustion.
+
+3. **Request Size Limiting**: Prevents attackers from sending extremely large payloads that could consume memory or processing resources.
+
+4. **API Key Authentication** (optional): When configured, requires an API key for accessing API endpoints, enabling tracking and control of API usage.
+
+5. **CAPTCHA Verification** (optional): When configured for the web interface, helps ensure requests come from humans rather than bots.
 
 ## Notes on Using the API
 
@@ -326,7 +261,9 @@ The API returns standard HTTP status codes:
 - 200: Success
 - 400: Bad Request (invalid parameters)
 - 404: Not Found (resource not found)
+- 429: Too Many Requests (rate limit exceeded)
 - 500: Internal Server Error (server-side error)
+- 503: Service Unavailable (server at capacity)
 
 Error responses include a detail message explaining the error:
 ```json
@@ -337,10 +274,10 @@ Error responses include a detail message explaining the error:
 
 ## Completeness Score
 
-The completeness score is calculated based on the presence and quality of various fields in the AIBOM. The score is broken down into sections:
+The completeness score is calculated based on the presence and quality of various fields in the AI SBOM. The score is broken down into sections:
 
-1. **Required Fields** (20 points): Basic required fields for a valid AIBOM
-2. **Metadata** (20 points): Information about the AIBOM itself
+1. **Required Fields** (20 points): Basic required fields for a valid AI SBOM
+2. **Metadata** (20 points): Information about the AI SBOM itself
 3. **Component Basic Info** (20 points): Basic information about the AI model component
 4. **Model Card** (30 points): Detailed model card information
 5. **External References** (10 points): Links to external resources
@@ -356,4 +293,4 @@ When AI enhancement is enabled, the API uses an inference model to extract addit
 3. **Improvement**: The point increase from enhancement
 4. **AI Model Used**: The model used for enhancement
 
-This helps you understand how much the AI enhancement improved the AIBOM's completeness.
+This helps you understand how much the AI enhancement improved the AI SBOM's completeness.

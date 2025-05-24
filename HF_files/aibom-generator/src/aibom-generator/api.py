@@ -10,32 +10,123 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from datetime import datetime
 from datasets import Dataset, load_dataset, concatenate_datasets
-import os
-import logging
-from urllib.parse import urlparse
+from typing import Dict, Optional, Any, List
+import uuid
 import re # Import regex module
 import html # Import html module for escaping
+from urllib.parse import urlparse
+from starlette.middleware.base import BaseHTTPMiddleware
 from huggingface_hub import HfApi
 from huggingface_hub.utils import RepositoryNotFoundError # For specific error handling
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Add Counter Configuration (as of May 3, 2025) ---
+# Define directories and constants
+templates_dir = "templates"
+OUTPUT_DIR = "/tmp/aibom_output"
+MAX_AGE_DAYS = 7  # Remove files older than 7 days
+MAX_FILES = 1000  # Keep maximum 1000 files
+CLEANUP_INTERVAL = 100  # Run cleanup every 100 requests
+
+# --- Add Counter Configuration (started as of May 3, 2025) ---
 HF_REPO = "aetheris-ai/aisbom-usage-log"  # User needs to create this private repo
 HF_TOKEN = os.getenv("HF_TOKEN")  # User must set this environment variable
 # --- End Counter Configuration ---
 
-# Define directories
-templates_dir = "templates"
-OUTPUT_DIR = "/tmp/aibom_output"
+# Create app
+app = FastAPI(title="AI SBOM Generator API")
+
+# Try different import paths
+try:
+    from src.aibom_generator.rate_limiting import RateLimitMiddleware, ConcurrencyLimitMiddleware, RequestSizeLimitMiddleware
+    logger.info("Successfully imported rate_limiting from src.aibom_generator")
+except ImportError:
+    try:
+        from .rate_limiting import RateLimitMiddleware, ConcurrencyLimitMiddleware, RequestSizeLimitMiddleware
+        logger.info("Successfully imported rate_limiting with relative import")
+    except ImportError:
+        try:
+            from rate_limiting import RateLimitMiddleware, ConcurrencyLimitMiddleware, RequestSizeLimitMiddleware
+            logger.info("Successfully imported rate_limiting from current directory")
+        except ImportError:
+            logger.error("Could not import rate_limiting, DoS protection disabled")
+            # Define dummy middleware classes that just pass through requests
+            # Define dummy middleware classes that just pass through requests
+            class RateLimitMiddleware(BaseHTTPMiddleware):
+                def __init__(self, app, **kwargs):
+                    super().__init__(app)
+                async def dispatch(self, request, call_next):
+                    try:
+                        return await call_next(request)
+                    except Exception as e:
+                        logger.error(f"Error in RateLimitMiddleware: {str(e)}")
+                        return JSONResponse(
+                            status_code=500,
+                            content={"detail": f"Internal server error: {str(e)}"}
+                        )
+                        
+            class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
+                def __init__(self, app, **kwargs):
+                    super().__init__(app)
+                async def dispatch(self, request, call_next):
+                    try:
+                        return await call_next(request)
+                    except Exception as e:
+                        logger.error(f"Error in ConcurrencyLimitMiddleware: {str(e)}")
+                        return JSONResponse(
+                            status_code=500,
+                            content={"detail": f"Internal server error: {str(e)}"}
+                        )
+                        
+            class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+                def __init__(self, app, **kwargs):
+                    super().__init__(app)
+                async def dispatch(self, request, call_next):
+                    try:
+                        return await call_next(request)
+                    except Exception as e:
+                        logger.error(f"Error in RequestSizeLimitMiddleware: {str(e)}")
+                        return JSONResponse(
+                            status_code=500,
+                            content={"detail": f"Internal server error: {str(e)}"}
+                        )
+
+
+
+# Rate limiting middleware
+app.add_middleware(
+    RateLimitMiddleware,
+    rate_limit_per_minute=10,  # Adjust as needed
+    rate_limit_window=60,
+    protected_routes=["/generate", "/api/generate", "/api/generate-with-report"]
+)
+
+app.add_middleware(
+    ConcurrencyLimitMiddleware,
+    max_concurrent_requests=5,  # Adjust based on server capacity
+    timeout=5.0,
+    protected_routes=["/generate", "/api/generate", "/api/generate-with-report"]
+)
+
+
+# Size limiting middleware
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_content_length=1024*1024  # 1MB
+)
+
+
+# Define models
+class StatusResponse(BaseModel):
+    status: str
+    version: str
+    generator_version: str
 
 # Initialize templates
 templates = Jinja2Templates(directory=templates_dir)
-
-# Create app
-app = FastAPI(title="AI SBOM Generator API")
 
 # Ensure output directory exists
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -43,11 +134,117 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # Mount output directory as static files
 app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 
-# Status response model
-class StatusResponse(BaseModel):
-    status: str
-    version: str
-    generator_version: str
+# Request counter for periodic cleanup
+request_counter = 0
+
+# Import cleanup_utils using absolute import
+try:
+    from src.aibom_generator.cleanup_utils import perform_cleanup
+    logger.info("Successfully imported cleanup_utils")
+except ImportError:
+    try:
+        from cleanup_utils import perform_cleanup
+        logger.info("Successfully imported cleanup_utils from current directory")
+    except ImportError:
+        logger.error("Could not import cleanup_utils, defining functions inline")
+        # Define cleanup functions inline if import fails
+        def cleanup_old_files(directory, max_age_days=7):
+            """Remove files older than max_age_days from the specified directory."""
+            if not os.path.exists(directory):
+                logger.warning(f"Directory does not exist: {directory}")
+                return 0
+            
+            removed_count = 0
+            now = datetime.now()
+            
+            try:
+                for filename in os.listdir(directory):
+                    file_path = os.path.join(directory, filename)
+                    if os.path.isfile(file_path):
+                        file_age = now - datetime.fromtimestamp(os.path.getmtime(file_path))
+                        if file_age.days > max_age_days:
+                            try:
+                                os.remove(file_path)
+                                removed_count += 1
+                                logger.info(f"Removed old file: {file_path}")
+                            except Exception as e:
+                                logger.error(f"Error removing file {file_path}: {e}")
+                
+                logger.info(f"Cleanup completed: removed {removed_count} files older than {max_age_days} days from {directory}")
+                return removed_count
+            except Exception as e:
+                logger.error(f"Error during cleanup of directory {directory}: {e}")
+                return 0
+
+        def limit_file_count(directory, max_files=1000):
+            """Ensure no more than max_files are kept in the directory (removes oldest first)."""
+            if not os.path.exists(directory):
+                logger.warning(f"Directory does not exist: {directory}")
+                return 0
+            
+            removed_count = 0
+            
+            try:
+                files = []
+                for filename in os.listdir(directory):
+                    file_path = os.path.join(directory, filename)
+                    if os.path.isfile(file_path):
+                        files.append((file_path, os.path.getmtime(file_path)))
+                
+                # Sort by modification time (oldest first)
+                files.sort(key=lambda x: x[1])
+                
+                # Remove oldest files if limit is exceeded
+                files_to_remove = files[:-max_files] if len(files) > max_files else []
+                
+                for file_path, _ in files_to_remove:
+                    try:
+                        os.remove(file_path)
+                        removed_count += 1
+                        logger.info(f"Removed excess file: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Error removing file {file_path}: {e}")
+                
+                logger.info(f"File count limit enforced: removed {removed_count} oldest files from {directory}, keeping max {max_files}")
+                return removed_count
+            except Exception as e:
+                logger.error(f"Error during file count limiting in directory {directory}: {e}")
+                return 0
+
+        def perform_cleanup(directory, max_age_days=7, max_files=1000):
+            """Perform both time-based and count-based cleanup."""
+            time_removed = cleanup_old_files(directory, max_age_days)
+            count_removed = limit_file_count(directory, max_files)
+            return time_removed + count_removed
+
+# Run initial cleanup
+try:
+    removed = perform_cleanup(OUTPUT_DIR, MAX_AGE_DAYS, MAX_FILES)
+    logger.info(f"Initial cleanup removed {removed} files")
+except Exception as e:
+    logger.error(f"Error during initial cleanup: {e}")
+
+# Define middleware
+@app.middleware("http" )
+async def cleanup_middleware(request, call_next):
+    """Middleware to periodically run cleanup."""
+    global request_counter
+    
+    # Increment request counter
+    request_counter += 1
+    
+    # Run cleanup periodically
+    if request_counter % CLEANUP_INTERVAL == 0:
+        logger.info(f"Running scheduled cleanup after {request_counter} requests")
+        try:
+            removed = perform_cleanup(OUTPUT_DIR, MAX_AGE_DAYS, MAX_FILES)
+            logger.info(f"Scheduled cleanup removed {removed} files")
+        except Exception as e:
+            logger.error(f"Error during scheduled cleanup: {e}")
+    
+    # Process the request
+    response = await call_next(request)
+    return response
 
 
 # --- Model ID Validation and Normalization Helpers --- 
@@ -636,6 +833,337 @@ async def download_file(filename: str):
         media_type="application/json",
         filename=filename
     )
+
+# Request model for JSON API
+class GenerateRequest(BaseModel):
+    model_id: str
+    include_inference: bool = True
+    use_best_practices: bool = True
+    hf_token: Optional[str] = None
+
+@app.post("/api/generate")
+async def api_generate_aibom(request: GenerateRequest):
+    """
+    Generate an AI SBOM for a specified Hugging Face model.
+    
+    This endpoint accepts JSON input and returns JSON output.
+    """
+    try:
+        # Sanitize and validate input
+        sanitized_model_id = html.escape(request.model_id)
+        if not is_valid_hf_input(sanitized_model_id):
+            raise HTTPException(status_code=400, detail="Invalid model ID format")
+            
+        normalized_model_id = _normalise_model_id(sanitized_model_id)
+        
+        # Verify model exists
+        try:
+            hf_api = HfApi()
+            model_info = hf_api.model_info(normalized_model_id)
+        except RepositoryNotFoundError:
+            raise HTTPException(status_code=404, detail=f"Model {normalized_model_id} not found on Hugging Face")
+        except Exception as api_err:
+            raise HTTPException(status_code=500, detail=f"Error verifying model: {str(api_err)}")
+        
+        # Generate AIBOM
+        try:
+            # Try different import paths for AIBOMGenerator
+            generator = None
+            try:
+                from src.aibom_generator.generator import AIBOMGenerator
+                generator = AIBOMGenerator()
+            except ImportError:
+                try:
+                    from aibom_generator.generator import AIBOMGenerator
+                    generator = AIBOMGenerator()
+                except ImportError:
+                    try:
+                        from generator import AIBOMGenerator
+                        generator = AIBOMGenerator()
+                    except ImportError:
+                        raise HTTPException(status_code=500, detail="Could not import AIBOMGenerator")
+        
+            aibom = generator.generate_aibom(
+                model_id=sanitized_model_id,
+                include_inference=request.include_inference,
+                use_best_practices=request.use_best_practices
+            )
+            enhancement_report = generator.get_enhancement_report()
+            
+            # Save AIBOM to file
+            filename = f"{normalized_model_id.replace('/', '_')}_ai_sbom.json"
+            filepath = os.path.join(OUTPUT_DIR, filename)
+            with open(filepath, "w") as f:
+                json.dump(aibom, f, indent=2)
+            
+            # Log generation
+            log_sbom_generation(sanitized_model_id)
+            
+            # Return JSON response
+            return {
+                "aibom": aibom,
+                "model_id": normalized_model_id,
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "request_id": str(uuid.uuid4()),
+                "download_url": f"/output/{filename}"
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error generating AI SBOM: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating AI SBOM: {str(e)}")
+
+@app.post("/api/generate-with-report")
+async def api_generate_with_report(request: GenerateRequest):
+    """
+    Generate an AI SBOM with a completeness report.
+    This endpoint accepts JSON input and returns JSON output with completeness score.
+    """
+    try:
+        # Sanitize and validate input
+        sanitized_model_id = html.escape(request.model_id)
+        if not is_valid_hf_input(sanitized_model_id):
+            raise HTTPException(status_code=400, detail="Invalid model ID format")
+            
+        normalized_model_id = _normalise_model_id(sanitized_model_id)
+        
+        # Verify model exists
+        try:
+            hf_api = HfApi()
+            model_info = hf_api.model_info(normalized_model_id)
+        except RepositoryNotFoundError:
+            raise HTTPException(status_code=404, detail=f"Model {normalized_model_id} not found on Hugging Face")
+        except Exception as api_err:
+            raise HTTPException(status_code=500, detail=f"Error verifying model: {str(api_err)}")
+        
+        # Generate AIBOM
+        try:
+            # Try different import paths for AIBOMGenerator
+            generator = None
+            try:
+                from src.aibom_generator.generator import AIBOMGenerator
+                generator = AIBOMGenerator()
+            except ImportError:
+                try:
+                    from aibom_generator.generator import AIBOMGenerator
+                    generator = AIBOMGenerator()
+                except ImportError:
+                    try:
+                        from generator import AIBOMGenerator
+                        generator = AIBOMGenerator()
+                    except ImportError:
+                        raise HTTPException(status_code=500, detail="Could not import AIBOMGenerator")
+        
+            aibom = generator.generate_aibom(
+                model_id=sanitized_model_id,
+                include_inference=request.include_inference,
+                use_best_practices=request.use_best_practices
+            )
+            
+            # Calculate completeness score
+            completeness_score = calculate_completeness_score(aibom, validate=True, use_best_practices=request.use_best_practices)
+            
+            # Round only section_scores that aren't already rounded
+            for section, score in completeness_score["section_scores"].items():
+                if isinstance(score, float) and not score.is_integer():
+                    completeness_score["section_scores"][section] = round(score, 1)
+            
+            # Convert field_checklist to machine-parseable format
+            if "field_checklist" in completeness_score:
+                machine_parseable_checklist = {}
+                for field, value in completeness_score["field_checklist"].items():
+                    # Extract presence (✔/✘) and importance (★★★/★★/★)
+                    present = "present" if "✔" in value else "missing"
+                    
+                    # Use field_tiers for importance since it's already machine-parseable
+                    importance = completeness_score["field_tiers"].get(field, "unknown")
+                    
+                    # Create structured entry
+                    machine_parseable_checklist[field] = {
+                        "status": present,
+                        "importance": importance
+                    }
+                
+                # Replace the original field_checklist with the machine-parseable version
+                completeness_score["field_checklist"] = machine_parseable_checklist
+            
+            # Remove field_tiers to avoid duplication (now incorporated in field_checklist)
+            completeness_score.pop("field_tiers", None)
+            
+            # Save AIBOM to file
+            filename = f"{normalized_model_id.replace('/', '_')}_ai_sbom.json"
+            filepath = os.path.join(OUTPUT_DIR, filename)
+            with open(filepath, "w") as f:
+                json.dump(aibom, f, indent=2)
+            
+            # Log generation
+            log_sbom_generation(sanitized_model_id)
+            
+            # Return JSON response with improved completeness score
+            return {
+                "aibom": aibom,
+                "model_id": normalized_model_id,
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "request_id": str(uuid.uuid4()),
+                "download_url": f"/output/{filename}",
+                "completeness_score": completeness_score
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error generating AI SBOM: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating AI SBOM: {str(e)}")
+
+
+@app.get("/api/models/{model_id:path}/score" )
+async def get_model_score(
+    model_id: str,
+    hf_token: Optional[str] = None,
+    use_best_practices: bool = True
+):
+    """
+    Get the completeness score for a model without generating a full AIBOM.
+    """
+    try:
+        # Sanitize and validate input
+        sanitized_model_id = html.escape(model_id)
+        if not is_valid_hf_input(sanitized_model_id):
+            raise HTTPException(status_code=400, detail="Invalid model ID format")
+            
+        normalized_model_id = _normalise_model_id(sanitized_model_id)
+        
+        # Verify model exists
+        try:
+            hf_api = HfApi(token=hf_token)
+            model_info = hf_api.model_info(normalized_model_id)
+        except RepositoryNotFoundError:
+            raise HTTPException(status_code=404, detail=f"Model {normalized_model_id} not found on Hugging Face")
+        except Exception as api_err:
+            raise HTTPException(status_code=500, detail=f"Error verifying model: {str(api_err)}")
+        
+        # Generate minimal AIBOM for scoring
+        try:
+            # Try different import paths for AIBOMGenerator
+            generator = None
+            try:
+                from src.aibom_generator.generator import AIBOMGenerator
+                generator = AIBOMGenerator(hf_token=hf_token)
+            except ImportError:
+                try:
+                    from aibom_generator.generator import AIBOMGenerator
+                    generator = AIBOMGenerator(hf_token=hf_token)
+                except ImportError:
+                    try:
+                        from generator import AIBOMGenerator
+                        generator = AIBOMGenerator(hf_token=hf_token)
+                    except ImportError:
+                        raise HTTPException(status_code=500, detail="Could not import AIBOMGenerator")
+            
+            # Generate minimal AIBOM
+            aibom = generator.generate_aibom(
+                model_id=sanitized_model_id,
+                include_inference=False,  # No need for inference for just scoring
+                use_best_practices=use_best_practices
+            )
+            
+            # Calculate score
+            score = calculate_completeness_score(aibom, validate=True, use_best_practices=use_best_practices)
+
+            # Log SBOM generation for counting purposes
+            log_sbom_generation(normalized_model_id)
+            
+            # Round section scores for better readability
+            for section, value in score["section_scores"].items():
+                if isinstance(value, float) and not value.is_integer():
+                    score["section_scores"][section] = round(value, 1)
+            
+            # Return score information
+            return {
+                "total_score": score["total_score"],
+                "section_scores": score["section_scores"],
+                "max_scores": score["max_scores"]
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error calculating model score: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+
+
+# Batch request model
+class BatchRequest(BaseModel):
+    model_ids: List[str]
+    include_inference: bool = True
+    use_best_practices: bool = True
+    hf_token: Optional[str] = None
+
+# In-memory storage for batch jobs
+batch_jobs = {}
+
+@app.post("/api/batch")
+async def batch_generate(request: BatchRequest):
+    """
+    Start a batch job to generate AIBOMs for multiple models.
+    """
+    try:
+        # Validate model IDs
+        valid_model_ids = []
+        for model_id in request.model_ids:
+            sanitized_id = html.escape(model_id)
+            if is_valid_hf_input(sanitized_id):
+                valid_model_ids.append(sanitized_id)
+            else:
+                logger.warning(f"Skipping invalid model ID: {model_id}")
+        
+        if not valid_model_ids:
+            raise HTTPException(status_code=400, detail="No valid model IDs provided")
+        
+        # Create job ID
+        job_id = str(uuid.uuid4())
+        created_at = datetime.utcnow()
+        
+        # Store job information
+        batch_jobs[job_id] = {
+            "job_id": job_id,
+            "status": "queued",
+            "model_ids": valid_model_ids,
+            "created_at": created_at.isoformat() + "Z",
+            "completed": 0,
+            "total": len(valid_model_ids),
+            "results": {}
+        }
+        
+        # Would be best to start a background task here but for now marking it as "processing"
+        batch_jobs[job_id]["status"] = "processing"
+        
+        return {
+            "job_id": job_id,
+            "status": "queued",
+            "model_ids": valid_model_ids,
+            "created_at": created_at.isoformat() + "Z"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating batch job: {str(e)}")
+
+@app.get("/api/batch/{job_id}")
+async def get_batch_status(job_id: str):
+    """
+    Check the status of a batch job.
+    """
+    if job_id not in batch_jobs:
+        raise HTTPException(status_code=404, detail=f"Batch job {job_id} not found")
+    
+    return batch_jobs[job_id]
+
 
 # If running directly (for local testing)
 if __name__ == "__main__":

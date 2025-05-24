@@ -119,10 +119,10 @@ class AIBOMGenerator:
                 "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
                 "tools": {
                     "components": [{
-                        "bom-ref": "pkg:generic/@cybeats/aetheris-aibom-generator@0.1.0",
+                        "bom-ref": "pkg:generic/aetheris-ai/aetheris-aibom-generator@1.0.0",
                         "type": "application",
                         "name": "aetheris-aibom-generator",
-                        "version": "0.1.0",
+                        "version": "1.0.0",
                         "manufacturer": {
                             "name": "Aetheris AI"
                         }
@@ -375,7 +375,7 @@ class AIBOMGenerator:
         # Create tools section with components array
         tools = {
             "components": [{
-                "bom-ref": "pkg:generic/@cybeats/aetheris-aibom-generator@0.1.0",
+                "bom-ref": "pkg:generic/aetheris-ai/aetheris-aibom-generator@1.0.0",
                 "type": "application",
                 "name": "aetheris-aibom-generator",
                 "version": "1.0",
