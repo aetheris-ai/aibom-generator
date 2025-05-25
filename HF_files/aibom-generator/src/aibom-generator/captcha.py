@@ -1,34 +1,55 @@
-import requests
 import os
+import requests
 import logging
+from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__ )
 
+# Get the secret key from environment variable
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY")
-RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 
-def verify_recaptcha(recaptcha_response ):
-    """Verify reCAPTCHA response."""
-    if not RECAPTCHA_SECRET_KEY:
-        # If no secret key is set, don't enforce CAPTCHA
-        logger.warning("RECAPTCHA_SECRET_KEY environment variable not set. CAPTCHA verification disabled.")
+def verify_recaptcha(response_token: Optional[str]) -> bool:
+    # LOGGING: Log the token start
+    logger.info(f"Starting reCAPTCHA verification with token: {response_token[:10]}..." if response_token else "None")
+    
+    # Check if secret key is set
+    secret_key = os.environ.get("RECAPTCHA_SECRET_KEY")
+    if not secret_key:
+        logger.warning("RECAPTCHA_SECRET_KEY not set, bypassing verification")
         return True
+    else:
+        # LOGGING: Log that secret key is set
+        logger.info("RECAPTCHA_SECRET_KEY is set (not showing for security)")
         
-    if not recaptcha_response:
-        logger.warning("No reCAPTCHA response provided")
+    # If no token provided, verification fails
+    if not response_token:
+        logger.warning("No reCAPTCHA response token provided")
         return False
-        
+    
     try:
-        response = requests.post(
-            RECAPTCHA_VERIFY_URL,
+        # LOGGING: Log before making request
+        logger.info("Sending verification request to Google reCAPTCHA API")
+        verification_response = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
             data={
-                "secret": RECAPTCHA_SECRET_KEY,
-                "response": recaptcha_response
+                "secret": secret_key,
+                "response": response_token
             }
-        )
-        result = response.json()
-        return result.get("success", False)
+         )
+        
+        result = verification_response.json()
+        # LOGGING: Log the complete result from Google
+        logger.info(f"reCAPTCHA verification result: {result}")
+        
+        if result.get("success"):
+            logger.info("reCAPTCHA verification successful")
+            return True
+        else:
+            # LOGGING: Log the specific error codes
+            logger.warning(f"reCAPTCHA verification failed: {result.get('error-codes', [])}")
+            return False
     except Exception as e:
-        logger.error(f"reCAPTCHA verification error: {str(e)}")
-        # On error, allow the request to proceed
-        return True
+        # LOGGING: Log any exceptions
+        logger.error(f"Error verifying reCAPTCHA: {str(e)}")
+        return False
+

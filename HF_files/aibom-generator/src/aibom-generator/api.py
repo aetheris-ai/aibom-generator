@@ -54,7 +54,6 @@ except ImportError:
         except ImportError:
             logger.error("Could not import rate_limiting, DoS protection disabled")
             # Define dummy middleware classes that just pass through requests
-            # Define dummy middleware classes that just pass through requests
             class RateLimitMiddleware(BaseHTTPMiddleware):
                 def __init__(self, app, **kwargs):
                     super().__init__(app)
@@ -93,6 +92,23 @@ except ImportError:
                             status_code=500,
                             content={"detail": f"Internal server error: {str(e)}"}
                         )
+try:
+    from src.aibom_generator.captcha import verify_recaptcha
+    logger.info("Successfully imported captcha from src.aibom_generator")
+except ImportError:
+    try:
+        from .captcha import verify_recaptcha
+        logger.info("Successfully imported captcha with relative import")
+    except ImportError:
+        try:
+            from captcha import verify_recaptcha
+            logger.info("Successfully imported captcha from current directory")
+        except ImportError:
+            logger.warning("Could not import captcha module, CAPTCHA verification disabled")
+            # Define a dummy verify_recaptcha function that always succeeds
+            def verify_recaptcha(response_token=None):
+                logger.warning("Using dummy CAPTCHA verification (always succeeds)")
+                return True
 
 
 
@@ -598,10 +614,24 @@ async def generate_form(
     request: Request,
     model_id: str = Form(...),
     include_inference: bool = Form(False),
-    use_best_practices: bool = Form(True)
+    use_best_practices: bool = Form(True),
+    g_recaptcha_response: Optional[str] = Form(None)
 ):
-    sbom_count = get_sbom_count() # Get count early for context
+     # Debug log all form data
+    form_data = await request.form()
+    logger.info(f"All form data: {dict(form_data)}")
     
+    # Verify CAPTCHA
+    if not verify_recaptcha(g_recaptcha_response):
+        return templates.TemplateResponse(
+            "error.html", {
+                "request": request, 
+                "error": "Security verification failed. Please try again.",
+                "sbom_count": get_sbom_count()
+            }
+        )
+        
+    sbom_count = get_sbom_count() # Get count early for context
     
     # --- Input Sanitization --- 
     sanitized_model_id = html.escape(model_id)

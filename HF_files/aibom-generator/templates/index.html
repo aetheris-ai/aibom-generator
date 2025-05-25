@@ -152,6 +152,8 @@
             margin-top: 30px;
         }
     </style>
+<!-- Invisible Captcha v2 -->
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
     <!-- Header with logo, title, and SBOM count -->
@@ -173,11 +175,22 @@
                 Enter a model on Hugging Face, in a format <code>&lt;organization-or-username&gt;/&lt;model-name&gt;</code> (easy copy button), or model's URL, to generate AI SBOM in CycloneDX format. You can browse available models in the <a href="https://huggingface.co/models" target="_blank" rel="noopener noreferrer">Hugging Face models repository</a>.
             </p>
             <!-- Added id="sbom-form" to the form -->
-            <form id="sbom-form" action="/generate" method="post">
-                <input type="text" name="model_id" placeholder="e.g., openai/whisper-tiny" required>
-                <!-- Added id="generate-button" to the button -->
-                <button id="generate-button" type="submit">Generate AI SBOM</button>
+            <form id="sbom-form" action="/generate" method="post" style="display: flex; flex-direction: row; align-items: center; width: 100%;">
+                <input type="text" name="model_id" placeholder="e.g., openai/whisper-tiny" required style="flex: 1; max-width: 70%; margin-right: 10px;">
+                <input type="hidden" name="g_recaptcha_response" id="g-recaptcha-response">
+                <button 
+                    class="g-recaptcha" 
+                    data-sitekey="6Ld57kcrAAAAAL7X-BF2EYLN5Adsom2VnFOnGsYR" 
+                    data-callback="onSubmit"
+                    data-action="submit"
+                    id="generate-button" 
+                    type="button">Generate AI SBOM</button>
             </form>
+          <div style="font-size: 12px; color: #777; margin-top: 10px;">
+          This site is protected by reCAPTCHA and the Google
+          <a href="https://policies.google.com/privacy">Privacy Policy</a> and
+          <a href="https://policies.google.com/terms">Terms of Service</a> apply.
+          </div>
         </div>
         
         <!-- Tool Description Section -->
@@ -189,7 +202,7 @@
         <!-- Introduction Section -->
         <div class="content-section">
             <h2>Understanding AI SBOMs</h2>
-            <p>An AI SBOM (Artificial Intelligence Software Bill of Materials) is a detailed, structured inventory that lists the components and dependencies involved in building and operating an AI system—such as pre-trained models, datasets, libraries, and configuration parameters. Much like a traditional SBOM for software, an AI SBOM brings transparency to what goes into an AI system, enabling organizations to assess security, compliance, and ethical risks. It is essential for managing AI supply chain risks, supporting regulatory requirements, ensuring model provenance, and enabling incident response and audits. As AI systems grow more complex and widely adopted, AI SBOMs become critical for maintaining trust, accountability, and control over how AI technologies are developed, integrated, and deployed.</p>
+            <p>An AI SBOM (Artificial Intelligence Software Bill of Materials, also known as AIBOM / ML-BOM or SBOM for AI) is a detailed, structured inventory that lists the components and dependencies involved in building and operating an AI system—such as pre-trained models, datasets, libraries, and configuration parameters. Much like a traditional SBOM for software, an AI SBOM brings transparency to what goes into an AI system, enabling organizations to assess security, compliance, and ethical risks. It is essential for managing AI supply chain risks, supporting regulatory requirements, ensuring model provenance, and enabling incident response and audits. As AI systems grow more complex and widely adopted, AI SBOMs become critical for maintaining trust, accountability, and control over how AI technologies are developed, integrated, and deployed.</p>
         </div>
       
         <!-- Support Section -->
@@ -223,15 +236,35 @@
         </div>
     </div>
 
-    <!-- JavaScript for loading indicator -->
-    <script>
-        document.getElementById('sbom-form').addEventListener('submit', function() {
-            var button = document.getElementById('generate-button');
-            button.disabled = true;
-            button.textContent = 'Generating...'; // Change button text
-            // Optionally add a spinner icon here if desired
-        });
-    </script>
-
+    <!-- JavaScript for loading indicator, and Captcha -->
+      <script>
+          function onSubmit(token ) {
+              // Set the token in the hidden input field
+              document.getElementById('g-recaptcha-response').value = token;
+              var button = document.getElementById('generate-button');
+              button.disabled = true;
+              button.textContent = 'Generating...';
+              // Now submit the form with the token
+              document.getElementById('sbom-form').submit();
+          }
+      </script>
+      <script>
+          function onSubmit(token ) {
+              console.log("reCAPTCHA callback executed with token:", token.substring(0, 10) + "...");
+              
+              // Set the token in the hidden input
+              document.getElementById('g-recaptcha-response').value = token;
+              console.log("Token set in input:", document.getElementById('g-recaptcha-response').value.substring(0, 10) + "...");
+              
+              // Disable button and change text
+              var button = document.getElementById('generate-button');
+              button.disabled = true;
+              button.textContent = 'Generating...';
+              
+              // Submit the form
+              console.log("Submitting form");
+              document.getElementById('sbom-form').submit();
+          }
+      </script>
 </body>
 </html>
