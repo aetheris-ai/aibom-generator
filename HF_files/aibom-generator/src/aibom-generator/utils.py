@@ -1,5 +1,5 @@
 """
-Utility functions for the AIBOM Generator.
+Utility functions for the AI SBOM Generator.
 """
 
 import json
@@ -920,6 +920,7 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
         "section_scores": normalized_scores,
         "max_scores": max_scores,
         "field_checklist": field_checklist,
+        "field_categorization": get_field_categorization_for_display(aibom),
         "field_tiers": {field: info["tier"] for field, info in FIELD_CLASSIFICATION.items()},
         "missing_fields": missing_fields,
         "completeness_profile": profile,
@@ -968,6 +969,8 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
                     warning_penalty = min(0.2, warning_count * 0.05)
                     result["total_score"] = round(result["total_score"] * (1 - warning_penalty), 1)
                     result["validation_penalty"] = f"-{int(warning_penalty * 100)}% due to {warning_count} schema warnings"
+
+        result = add_enhanced_field_display_to_result(result, aibom)
         
         return result
     
@@ -1106,6 +1109,8 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
                 warning_penalty = min(0.2, warning_count * 0.05)
                 result["total_score"] = round(result["total_score"] * (1 - warning_penalty), 1)
                 result["validation_penalty"] = f"-{int(warning_penalty * 100)}% due to {warning_count} schema warnings"
+
+    result = add_enhanced_field_display_to_result(result, aibom)
     
     return result
 
@@ -1134,3 +1139,169 @@ def create_purl(model_id: str) -> str:
         return f"pkg:huggingface/{parts['owner']}/{parts['name']}"
     return f"pkg:huggingface/{parts['name']}"
 
+
+def get_field_categorization_for_display(aibom: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Hardcoded field categorization with dynamic status detection.
+    """
+    
+    # Standard CycloneDX Fields
+    standard_cyclonedx_definitions = {
+        "bomFormat": {"json_path": "bomFormat", "importance": "Critical"},
+        "specVersion": {"json_path": "specVersion", "importance": "Critical"},
+        "serialNumber": {"json_path": "serialNumber", "importance": "Critical"},
+        "version": {"json_path": "version", "importance": "Critical"},
+        "metadata.timestamp": {"json_path": "metadata.timestamp", "importance": "Important"},
+        "metadata.tools": {"json_path": "metadata.tools", "importance": "Important"},
+        "metadata.component": {"json_path": "metadata.component", "importance": "Important"},
+        "component.type": {"json_path": "components[].type", "importance": "Important"},
+        "component.name": {"json_path": "components[].name", "importance": "Critical"},
+        "component.bom-ref": {"json_path": "components[].bom-ref", "importance": "Important"},
+        "component.purl": {"json_path": "components[].purl", "importance": "Important"},
+        "component.description": {"json_path": "components[].description", "importance": "Important"},
+        "component.licenses": {"json_path": "components[].licenses", "importance": "Important"},
+        "externalReferences": {"json_path": "components[].externalReferences", "importance": "Supplementary"},
+        "downloadLocation": {"json_path": "components[].externalReferences[].url", "importance": "Critical"},
+    }
+    
+    # AI-Specific Extension Fields  
+    ai_specific_definitions = {
+        # Model card structure fields
+        "modelCard.modelParameters": {"json_path": "components[].modelCard.modelParameters", "importance": "Important"},
+        "modelCard.quantitativeAnalysis": {"json_path": "components[].modelCard.quantitativeAnalysis", "importance": "Important"},
+        "modelCard.considerations": {"json_path": "components[].modelCard.considerations", "importance": "Important"},
+        
+        # Properties-based fields
+        "primaryPurpose": {"json_path": "metadata.properties[].name=\"primaryPurpose\"", "importance": "Critical"},
+        "suppliedBy": {"json_path": "metadata.properties[].name=\"suppliedBy\"", "importance": "Critical"},
+        "typeOfModel": {"json_path": "components[].modelCard.properties[].name=\"typeOfModel\"", "importance": "Important"},
+        "energyConsumption": {"json_path": "components[].modelCard.properties[].name=\"energyConsumption\"", "importance": "Important"},
+        "hyperparameter": {"json_path": "components[].modelCard.properties[].name=\"hyperparameter\"", "importance": "Important"},
+        "limitation": {"json_path": "components[].modelCard.properties[].name=\"limitation\"", "importance": "Important"},
+        "safetyRiskAssessment": {"json_path": "components[].modelCard.properties[].name=\"safetyRiskAssessment\"", "importance": "Important"},
+        "modelExplainability": {"json_path": "components[].modelCard.properties[].name=\"modelExplainability\"", "importance": "Supplementary"},
+        "standardCompliance": {"json_path": "components[].modelCard.properties[].name=\"standardCompliance\"", "importance": "Supplementary"},
+        "domain": {"json_path": "components[].modelCard.properties[].name=\"domain\"", "importance": "Supplementary"},
+        "energyQuantity": {"json_path": "components[].modelCard.properties[].name=\"energyQuantity\"", "importance": "Supplementary"},
+        "energyUnit": {"json_path": "components[].modelCard.properties[].name=\"energyUnit\"", "importance": "Supplementary"},
+        "informationAboutTraining": {"json_path": "components[].modelCard.properties[].name=\"informationAboutTraining\"", "importance": "Supplementary"},
+        "informationAboutApplication": {"json_path": "components[].modelCard.properties[].name=\"informationAboutApplication\"", "importance": "Supplementary"},
+        "metric": {"json_path": "components[].modelCard.properties[].name=\"metric\"", "importance": "Supplementary"},
+        "metricDecisionThreshold": {"json_path": "components[].modelCard.properties[].name=\"metricDecisionThreshold\"", "importance": "Supplementary"},
+        "modelDataPreprocessing": {"json_path": "components[].modelCard.properties[].name=\"modelDataPreprocessing\"", "importance": "Supplementary"},
+        "autonomyType": {"json_path": "components[].modelCard.properties[].name=\"autonomyType\"", "importance": "Supplementary"},
+        "useSensitivePersonalInformation": {"json_path": "components[].modelCard.properties[].name=\"useSensitivePersonalInformation\"", "importance": "Supplementary"},
+    }
+    
+    # DYNAMIC: Check status for each field
+    def check_field_presence(field_key):
+        """Simple field presence detection"""
+        if field_key == "bomFormat":
+            return "bomFormat" in aibom
+        elif field_key == "specVersion":
+            return "specVersion" in aibom
+        elif field_key == "serialNumber":
+            return "serialNumber" in aibom
+        elif field_key == "version":
+            return "version" in aibom
+        elif field_key == "metadata.timestamp":
+            return "metadata" in aibom and "timestamp" in aibom["metadata"]
+        elif field_key == "metadata.tools":
+            return "metadata" in aibom and "tools" in aibom["metadata"]
+        elif field_key == "metadata.component":
+            return "metadata" in aibom and "component" in aibom["metadata"]
+        elif field_key == "component.type":
+            return "components" in aibom and aibom["components"] and "type" in aibom["components"][0]
+        elif field_key == "component.name":
+            return "components" in aibom and aibom["components"] and "name" in aibom["components"][0]
+        elif field_key == "component.bom-ref":
+            return "components" in aibom and aibom["components"] and "bom-ref" in aibom["components"][0]
+        elif field_key == "component.purl":
+            return "components" in aibom and aibom["components"] and "purl" in aibom["components"][0]
+        elif field_key == "component.description":
+            return "components" in aibom and aibom["components"] and "description" in aibom["components"][0]
+        elif field_key == "component.licenses":
+            return "components" in aibom and aibom["components"] and "licenses" in aibom["components"][0]
+        elif field_key == "externalReferences":
+            return ("externalReferences" in aibom or 
+                    ("components" in aibom and aibom["components"] and "externalReferences" in aibom["components"][0]))
+        elif field_key == "downloadLocation":
+            if "externalReferences" in aibom:
+                for ref in aibom["externalReferences"]:
+                    if ref.get("type") == "distribution":
+                        return True
+            if "components" in aibom and aibom["components"] and "externalReferences" in aibom["components"][0]:
+                return len(aibom["components"][0]["externalReferences"]) > 0
+            return False
+        elif field_key == "modelCard.modelParameters":
+            return ("components" in aibom and aibom["components"] and 
+                    "modelCard" in aibom["components"][0] and 
+                    "modelParameters" in aibom["components"][0]["modelCard"])
+        elif field_key == "modelCard.quantitativeAnalysis":
+            return ("components" in aibom and aibom["components"] and 
+                    "modelCard" in aibom["components"][0] and 
+                    "quantitativeAnalysis" in aibom["components"][0]["modelCard"])
+        elif field_key == "modelCard.considerations":
+            return ("components" in aibom and aibom["components"] and 
+                    "modelCard" in aibom["components"][0] and 
+                    "considerations" in aibom["components"][0]["modelCard"])
+        elif field_key == "primaryPurpose":
+            if "metadata" in aibom and "properties" in aibom["metadata"]:
+                for prop in aibom["metadata"]["properties"]:
+                    if prop.get("name") == "primaryPurpose":
+                        return True
+            return False
+        elif field_key == "suppliedBy":
+            if "metadata" in aibom and "properties" in aibom["metadata"]:
+                for prop in aibom["metadata"]["properties"]:
+                    if prop.get("name") == "suppliedBy":
+                        return True
+            return False
+        elif field_key == "typeOfModel":
+            if ("components" in aibom and aibom["components"] and 
+                "modelCard" in aibom["components"][0] and 
+                "properties" in aibom["components"][0]["modelCard"]):
+                for prop in aibom["components"][0]["modelCard"]["properties"]:
+                    if prop.get("name") == "typeOfModel":
+                        return True
+            return False
+        else:
+            # For other AI-specific fields, check in modelCard properties
+            if ("components" in aibom and aibom["components"] and 
+                "modelCard" in aibom["components"][0] and 
+                "properties" in aibom["components"][0]["modelCard"]):
+                for prop in aibom["components"][0]["modelCard"]["properties"]:
+                    if prop.get("name") == field_key:
+                        return True
+            return False
+    
+    # Build result with dynamic status
+    standard_fields = {}
+    for field_key, field_info in standard_cyclonedx_definitions.items():
+        standard_fields[field_key] = {
+            "status": "✔" if check_field_presence(field_key) else "✘",
+            "field_name": field_key,
+            "json_path": field_info["json_path"],
+            "importance": field_info["importance"]
+        }
+    
+    ai_fields = {}
+    for field_key, field_info in ai_specific_definitions.items():
+        ai_fields[field_key] = {
+            "status": "✔" if check_field_presence(field_key) else "✘",
+            "field_name": field_key,
+            "json_path": field_info["json_path"],
+            "importance": field_info["importance"]
+        }
+    
+    return {
+        "standard_cyclonedx_fields": standard_fields,
+        "ai_specific_extension_fields": ai_fields
+    }
+
+
+def add_enhanced_field_display_to_result(result: Dict[str, Any], aibom: Dict[str, Any]) -> Dict[str, Any]:
+    """Add field categorization to result"""
+    enhanced_result = result.copy()
+    enhanced_result["field_display"] = get_field_categorization_for_display(aibom)
+    return enhanced_result

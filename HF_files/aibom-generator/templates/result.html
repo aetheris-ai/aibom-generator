@@ -145,7 +145,7 @@
             font-weight: 600;
         }
         
-        /* Fixed color styling for field checklist items */
+        /* Styling for field checklist items */
         .check-mark { color: #27ae60; } /* Green color for check marks */
         .x-mark { color: #e74c3c; } /* Red color for x marks */
         .field-name { color: #000; } /* Black color for field names */
@@ -169,7 +169,7 @@
             margin-left: 10px; 
         }
         
-        /* New styles for human-friendly viewer */
+        /* Styles for human-friendly viewer */
         .aibom-viewer {
             margin: 20px 0;
             border: 1px solid #e9ecef;
@@ -359,7 +359,7 @@
             flex: 1;
         }
         
-        /* New styles for improved user understanding */
+        /* Styles for improved user understanding */
         .tooltip {
             position: relative;
             display: inline-block;
@@ -476,7 +476,7 @@
             margin-right: 15px;
         }
         
-        /* New styles for completeness profile */
+        /* Styles for completeness profile */
         .completeness-profile {
             background-color: #e8f5e9;
             border-radius: 8px;
@@ -501,7 +501,7 @@
         .profile-advanced {
             background-color: #4caf50;
         }
-        /* Fix for contrast issue with profile status */
+        /* Contrast for profile status */
         .profile-incomplete {
             background-color: #f44336;
             color: white; /* Ensure text is visible on red background */
@@ -532,7 +532,7 @@
             align-items: center;
             margin-right: 20px;
         }
-        /* New style for validation penalty explanation */
+        /* Style for validation penalty explanation */
         .validation-penalty-info {
             background-color: #fff3e0;
             border-left: 4px solid #ff9800;
@@ -547,7 +547,7 @@
             margin-bottom: 15px;
         }
         
-        /* New section for score calculation explanation */
+        /* Section for score calculation explanation */
         .score-calculation {
             margin-top: 30px;
             padding: 25px;
@@ -606,7 +606,7 @@
         <a href="https://aetheris.ai/" target="_blank">
             <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
         </a>
-        <!-- Added header-content div -->
+        <!-- Header-content div -->
         <div class="header-content">
             <h1>AI SBOM Generator</h1>
         </div>
@@ -741,7 +741,7 @@
 
         <div id="field-checklist" class="tab-content">
             <div class="content-section">
-                <h3>Field Checklist</h3>
+                <h3>Field Checklist & Mapping</h3>
                 
                 <!-- Field Tier Legend -->
                 <div class="tier-legend">
@@ -759,55 +759,145 @@
                     </div>
                 </div>
                 
-                <ul>
-                    {% for field, status in completeness_score.field_checklist.items() %}
-                        {% if "✔" in status %}
-                            <li>
-                                <span class="check-mark">✔</span>
-                                <span class="field-name">{{ field }}</span>
-                                <span class="field-stars">{{ status.split('✔')[1] }}</span>
-                                {% if completeness_score.field_tiers and field in completeness_score.field_tiers %}
-                                    <span class="field-tier tier-{{ completeness_score.field_tiers[field] }}"></span>
-                                {% endif %}
-                            </li>
-                        {% else %}
-                            <li>
-                                <span class="x-mark">✘</span>
-                                <span class="field-name">{{ field }}</span>
-                                <span class="field-stars">{{ status.split('✘')[1] }}</span>
-                                {% if completeness_score.field_tiers and field in completeness_score.field_tiers %}
-                                    <span class="field-tier tier-{{ completeness_score.field_tiers[field] }}"></span>
-                                {% endif %}
-                                
-                                {% if field == "component.description" %}
-                                    <span class="tooltip">(?)
-                                        <span class="tooltiptext">A detailed description of the model is essential for users to understand its purpose and capabilities. Add a description that is at least 20 characters long.</span>
-                                    </span>
-                                {% elif field == "component.purl" %}
-                                    <span class="tooltip">(?)
-                                        <span class="tooltiptext">Package URL (PURL) is critical for uniquely identifying the model. It should follow the format pkg:huggingface/[owner]/[name]@[version].</span>
-                                    </span>
-                                {% elif field == "modelCard.modelParameters" %}
-                                    <span class="tooltip">(?)
-                                        <span class="tooltiptext">Model parameters provide essential technical details about the model architecture, training, and capabilities.</span>
-                                    </span>
-                                {% elif field == "modelCard.considerations" %}
-                                    <span class="tooltip">(?)
-                                        <span class="tooltiptext">Considerations section should include ethical considerations, limitations, and risks associated with the model.</span>
-                                    </span>
-                                {% elif field == "externalReferences" %}
-                                    <span class="tooltip">(?)
-                                        <span class="tooltiptext">External references provide links to additional resources like model cards, repositories, and datasets.</span>
-                                    </span>
-                                {% else %}
-                                    <span class="tooltip">(?)
-                                        <span class="tooltiptext">This field contributes to the completeness of your AI SBOM.</span>
-                                    </span>
-                                {% endif %}
-                            </li>
-                        {% endif %}
-                    {% endfor %}
-                </ul>
+                <p>This table shows how fields map to the CycloneDX specification and their status in your AI SBOM.</p>
+                
+                <div class="field-mapping-container">
+                    <h4>Standard CycloneDX Fields</h4>
+                    <p>These fields are part of the official CycloneDX specification and are used in all SBOMs:</p>
+                    <table class="field-mapping-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Field Name</th>
+                                <th>CycloneDX JSON Path</th>
+                                <th>Info</th>
+                                <th>Importance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for field_key, field_data in completeness_score.field_categorization.standard_cyclonedx_fields.items() %}
+                                <tr class="{% if field_data.status == '✔' %}present-field{% else %}missing-field{% endif %}">
+                                    <td class="status-cell">
+                                        {% if field_data.status == "✔" %}
+                                            <span class="check-mark">✔</span>
+                                        {% else %}
+                                            <span class="x-mark">✘</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ field_data.field_name }}</td>
+                                    <td>{{ field_data.json_path }}</td>
+                                    <td>
+                                        <span class="tooltip">(?)
+                                            <span class="tooltiptext">{{ field_data.field_name }} field information.</span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="field-tier tier-{{ field_data.importance|lower }}"></span>
+                                        {{ field_data.importance }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    
+                    <h4>AI-Specific Extension Fields</h4>
+                    <p>These fields extend the CycloneDX specification specifically for AI models:</p>
+                    <table class="field-mapping-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Field Name</th>
+                                <th>CycloneDX JSON Path</th>
+                                <th>Info</th>
+                                <th>Importance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for field_key, field_data in completeness_score.field_categorization.ai_specific_extension_fields.items() %}
+                                <tr class="{% if field_data.status == '✔' %}present-field{% else %}missing-field{% endif %}">
+                                    <td class="status-cell">
+                                        {% if field_data.status == "✔" %}
+                                            <span class="check-mark">✔</span>
+                                        {% else %}
+                                            <span class="x-mark">✘</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ field_data.field_name }}</td>
+                                    <td>{{ field_data.json_path }}</td>
+                                    <td>
+                                        <span class="tooltip">(?)
+                                            <span class="tooltiptext">{{ field_data.field_name }} field information.</span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="field-tier tier-{{ field_data.importance|lower }}"></span>
+                                        {{ field_data.importance }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <style>
+                    .field-mapping-container {
+                        margin-top: 20px;
+                        max-width: 100%;
+                        overflow-x: auto;
+                    }
+                    .field-mapping-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-bottom: 30px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border-radius: 8px;
+                        overflow: hidden;
+                        table-layout: fixed;
+                    }
+                    .field-mapping-table th {
+                        background-color: #f5f5f5;
+                        padding: 12px 15px;
+                        text-align: left;
+                        font-weight: 600;
+                        color: #333;
+                        border-bottom: 2px solid #ddd;
+                    }
+                    .field-mapping-table td {
+                        padding: 10px 15px;
+                        border-bottom: 1px solid #eee;
+                        vertical-align: middle;
+                        word-wrap: break-word;
+                        word-break: break-word;
+                        max-width: 250px;
+                    }
+                    .field-mapping-table tr:last-child td {
+                        border-bottom: none;
+                    }
+                    .field-mapping-table tr:hover {
+                        background-color: #f9f9f9;
+                    }
+                    .status-cell {
+                        text-align: center;
+                        width: 60px;
+                    }
+                    .present-field {
+                        background-color: #f0f7f0;
+                    }
+                    .missing-field {
+                        background-color: #fff7f7;
+                    }
+                    .check-mark {
+                        color: #4caf50;
+                        font-weight: bold;
+                        font-size: 18px;
+                    }
+                    .x-mark {
+                        color: #f44336;
+                        font-weight: bold;
+                        font-size: 18px;
+                    }
+                </style>
             </div>
         </div>
 
@@ -1060,13 +1150,26 @@
                     <!-- Scoring Rubric Section -->
                     <div class="calculation-section scoring-rubric">
                         <h4>Scoring Rubric</h4>
-                        <p>The overall score is calculated using a weighted category approach:</p>
-                        <p><strong>Total Score = (Sum of (Category Score × Category Weight)) × 100</strong></p>
+                        <p>The overall score is calculated using a <strong>weighted normalization</strong> approach:</p>
+                        <p><strong>Total Score = Sum of (Section Score × Section Weight)</strong></p>
                         <p>Where:</p>
                         <ul>
-                            <li>Category Score = Sum of weights for present fields in that category</li>
-                            <li>Category Weight = Max Category Score ÷ Sum of All Max Category Scores</li>
+                            <li>Section Score = Points earned in that section</li>
+                            <li>Section Weight = Section's maximum points ÷ Total possible points (100)</li>
                         </ul>
+                        
+                        <div class="note-box">
+                            <p><strong>Example calculation:</strong> If your SBOM has these section scores:</p>
+                            <ul>
+                                <li>Required Fields: 20 points × 0.20 weight = 4.0 points</li>
+                                <li>Metadata: 15 points × 0.20 weight = 3.0 points</li>
+                                <li>Component Basic: 10 points × 0.20 weight = 2.0 points</li>
+                                <li>Model Card: 10 points × 0.30 weight = 3.0 points</li>
+                                <li>External References: 5 points × 0.10 weight = 0.5 points</li>
+                            </ul>
+                            <p>The total score would be 12.5 points, even though the raw section scores sum to 60 points.</p>
+                            <p><strong>Note:</strong> The total score is <em>not</em> the sum of section scores. Each section contributes proportionally to its weight in the final score.</p>
+                        </div>
                         
                         <p>Fields are classified into three tiers based on importance:</p>
                         <ul>
