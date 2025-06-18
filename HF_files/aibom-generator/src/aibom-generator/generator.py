@@ -81,12 +81,6 @@ class AIBOMGenerator:
             # Calculate final score with industry-neutral approach if enabled
             final_score = calculate_completeness_score(aibom, validate=True, use_best_practices=use_best_practices)
             
-            # Ensure metadata.properties exists
-            if "metadata" in aibom and "properties" not in aibom["metadata"]:
-                aibom["metadata"]["properties"] = []
-
-            # Note: Quality score information is no longer added to the AIBOM metadata
-            # This was removed as requested by the user
 
             if output_file:
                 with open(output_file, 'w') as f:
@@ -214,16 +208,17 @@ class AIBOMGenerator:
             ]
         }        
         
-        # Add downloadLocation if available
+        # ALWAYS add root-level external references
+        aibom["externalReferences"] = [{
+            "type": "distribution",
+            "url": f"https://huggingface.co/{model_id}"
+        }]
+
         if metadata and "commit_url" in metadata:
-            # Add external reference for downloadLocation
-            if "externalReferences" not in aibom:
-                aibom["externalReferences"] = []
-            
             aibom["externalReferences"].append({
-                "type": "distribution",
-                "url": f"https://huggingface.co/{model_id}"
-            })
+                "type": "vcs", 
+                "url": metadata["commit_url"]
+            } )
 
         return aibom
 
@@ -234,22 +229,30 @@ class AIBOMGenerator:
         model_card: Optional[ModelCard],
     ) -> Dict[str, Any]:
         metadata = {}
-
+    
         if model_info:
             try:
+                author = getattr(model_info, "author", None)
+                if not author or author.strip() == "":
+                    parts = model_id.split("/")
+                    author = parts[0] if len(parts) > 1 else "unknown"
+                    print(f"DEBUG: Fallback author used: {author}")
+                else:
+                    print(f"DEBUG: Author from model_info: {author}")
+    
                 metadata.update({
-                    "name": model_info.modelId.split("/")[-1] if hasattr(model_info, "modelId") else model_id.split("/")[-1],
-                    "author": model_info.author if hasattr(model_info, "author") else None,
-                    "tags": model_info.tags if hasattr(model_info, "tags") else [],
-                    "pipeline_tag": model_info.pipeline_tag if hasattr(model_info, "pipeline_tag") else None,
-                    "downloads": model_info.downloads if hasattr(model_info, "downloads") else 0,
-                    "last_modified": model_info.lastModified if hasattr(model_info, "lastModified") else None,
-                    "commit": model_info.sha[:7] if hasattr(model_info, "sha") and model_info.sha else None,
-                    "commit_url": f"https://huggingface.co/{model_id}/commit/{model_info.sha}" if hasattr(model_info, "sha") and model_info.sha else None,
+                    "name": getattr(model_info, "modelId", model_id).split("/")[-1],
+                    "author": author,
+                    "tags": getattr(model_info, "tags", []),
+                    "pipeline_tag": getattr(model_info, "pipeline_tag", None),
+                    "downloads": getattr(model_info, "downloads", 0),
+                    "last_modified": getattr(model_info, "lastModified", None),
+                    "commit": getattr(model_info, "sha", None)[:7] if getattr(model_info, "sha", None) else None,
+                    "commit_url": f"https://huggingface.co/{model_id}/commit/{model_info.sha}" if getattr(model_info, "sha", None) else None,
                 })
             except Exception as e:
                 print(f"Error extracting model info metadata: {e}")
-
+    
         if model_card and hasattr(model_card, "data") and model_card.data:
             try:
                 card_data = model_card.data.to_dict() if hasattr(model_card.data, "to_dict") else {}
@@ -267,104 +270,35 @@ class AIBOMGenerator:
                     metadata["eval_results"] = model_card.data.eval_results
             except Exception as e:
                 print(f"Error extracting model card metadata: {e}")
-
+    
         metadata["ai:type"] = "Transformer"
         metadata["ai:task"] = metadata.get("pipeline_tag", "Text Generation")
         metadata["ai:framework"] = "PyTorch" if "transformers" in metadata.get("library_name", "") else "Unknown"
-        
-        # Add fields for industry-neutral scoring (silently aligned with SPDX)
-        metadata["primaryPurpose"] = metadata.get("ai:task", "Text Generation")
-        metadata["suppliedBy"] = metadata.get("author", "Unknown")
-        
-        # Add typeOfModel field
+    
+        metadata["primaryPurpose"] = metadata.get("ai:task", "text-generation")
+    
+        # Use model owner as fallback for suppliedBy if no author
+        if not metadata.get("author"):
+            parts = model_id.split("/")
+            metadata["author"] = parts[0] if len(parts) > 1 else "unknown"
+    
+        metadata["suppliedBy"] = metadata.get("author", "unknown")
         metadata["typeOfModel"] = metadata.get("ai:type", "Transformer")
-
+    
+        print(f"DEBUG: Final metadata['author'] = {metadata.get('author')}")
+        print(f"DEBUG: Adding primaryPurpose = {metadata.get('ai:task', 'Text Generation')}")
+        print(f"DEBUG: Adding suppliedBy = {metadata.get('suppliedBy')}")
+    
         return {k: v for k, v in metadata.items() if v is not None}
+    
 
     def _extract_unstructured_metadata(self, model_card: Optional[ModelCard], model_id: str) -> Dict[str, Any]:
         """
-        Extract additional metadata from model card using BERT model.
-        This is a placeholder implementation that would be replaced with actual BERT inference.
-        
-        In a real implementation, this would:
-        1. Extract text from model card
-        2. Use BERT to identify key information
-        3. Structure the extracted information
-        
-        For now, we'll simulate this with some basic extraction logic.
+        Placeholder for future AI enhancement.
+        Currently returns empty dict since AI enhancement is not implemented.
         """
-        enhanced_metadata = {}
+        return {}
         
-        # In a real implementation, we would use a BERT model here
-        # Since we can't install the required libraries due to space constraints,
-        # we'll simulate the enhancement with a placeholder implementation
-        
-        if model_card and hasattr(model_card, "text") and model_card.text:
-            try:
-                card_text = model_card.text
-                
-                # Simulate BERT extraction with basic text analysis
-                # In reality, this would be done with NLP models
-                
-                # Extract description if missing
-                if card_text and "description" not in enhanced_metadata:
-                    # Take first paragraph that's longer than 20 chars as description
-                    paragraphs = [p.strip() for p in card_text.split('\n\n')]
-                    for p in paragraphs:
-                        if len(p) > 20 and not p.startswith('#'):
-                            enhanced_metadata["description"] = p
-                            break
-                
-                # Extract limitations if present
-                if "limitations" not in enhanced_metadata:
-                    if "## Limitations" in card_text:
-                        limitations_section = card_text.split("## Limitations")[1].split("##")[0].strip()
-                        if limitations_section:
-                            enhanced_metadata["limitations"] = limitations_section
-                
-                # Extract ethical considerations if present
-                if "ethical_considerations" not in enhanced_metadata:
-                    for heading in ["## Ethical Considerations", "## Ethics", "## Bias"]:
-                        if heading in card_text:
-                            section = card_text.split(heading)[1].split("##")[0].strip()
-                            if section:
-                                enhanced_metadata["ethical_considerations"] = section
-                                break
-                
-                # Extract risks if present
-                if "risks" not in enhanced_metadata:
-                    if "## Risks" in card_text:
-                        risks_section = card_text.split("## Risks")[1].split("##")[0].strip()
-                        if risks_section:
-                            enhanced_metadata["risks"] = risks_section
-                
-                # Extract datasets if present
-                if "datasets" not in enhanced_metadata:
-                    datasets = []
-                    if "## Dataset" in card_text or "## Datasets" in card_text:
-                        dataset_section = ""
-                        if "## Dataset" in card_text:
-                            dataset_section = card_text.split("## Dataset")[1].split("##")[0].strip()
-                        elif "## Datasets" in card_text:
-                            dataset_section = card_text.split("## Datasets")[1].split("##")[0].strip()
-                        
-                        if dataset_section:
-                            # Simple parsing to extract dataset names
-                            lines = dataset_section.split("\n")
-                            for line in lines:
-                                if line.strip() and not line.startswith("#"):
-                                    datasets.append({
-                                        "type": "dataset",
-                                        "name": line.strip().split()[0] if line.strip().split() else "Unknown",
-                                        "description": line.strip()
-                                    })
-                    
-                    if datasets:
-                        enhanced_metadata["datasets"] = datasets
-            except Exception as e:
-                print(f"Error extracting unstructured metadata: {e}")
-        
-        return enhanced_metadata
 
     def _create_metadata_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         timestamp = datetime.datetime.utcnow().isoformat() + "Z"
@@ -419,10 +353,25 @@ class AIBOMGenerator:
         # Add copyright
         component["copyright"] = "NOASSERTION"
 
-        # Create properties array for additional metadata
+        # Create properties array for additional metadata (ALWAYS include critical fields)
         properties = []
+
+        # ALWAYS add critical fields for scoring
+        critical_fields = {
+            "primaryPurpose": metadata.get("primaryPurpose", metadata.get("ai:task", "text-generation")),
+            "suppliedBy": metadata.get("suppliedBy", metadata.get("author", "unknown")),
+            "typeOfModel": metadata.get("ai:type", "transformer")
+        }
+
+        # Add critical fields first
+        for key, value in critical_fields.items():
+            if value and value != "unknown":
+                properties.append({"name": key, "value": str(value)})
+
+        # Add other metadata fields (excluding basic component fields)
+        excluded_fields = ["name", "author", "license", "description", "commit", "primaryPurpose", "suppliedBy", "typeOfModel"]
         for key, value in metadata.items():
-            if key not in ["name", "author", "license", "description", "commit"] and value is not None:
+            if key not in excluded_fields and value is not None:
                 if isinstance(value, (list, dict)):
                     if not isinstance(value, str):
                         value = json.dumps(value)
@@ -432,11 +381,9 @@ class AIBOMGenerator:
         metadata_section = {
             "timestamp": timestamp,
             "tools": tools,
-            "component": component
+            "component": component,
+            "properties": properties  # ALWAYS include properties
         }
-
-        if properties:
-            metadata_section["properties"] = properties
 
         return metadata_section
 
@@ -465,18 +412,29 @@ class AIBOMGenerator:
             "purl": purl
         }
 
-        # Add licenses if available
-        if "license" in metadata:
+        # ALWAYS add licenses (use default if not available)
+        if metadata and "license" in metadata and metadata["license"]:
             component["licenses"] = [{
                 "license": {
                     "id": metadata["license"],
                     "url": self._get_license_url(metadata["license"])
                 }
             }]
-
-        # Add description if available
-        if "description" in metadata:
-            component["description"] = metadata["description"]
+        else:
+            # Add default license structure for consistency
+            component["licenses"] = [{
+                "license": {
+                    "id": "unknown",
+                    "url": "https://spdx.org/licenses/"
+                }
+            }]
+        # Debug
+        print(f"DEBUG: License in metadata: {'license' in metadata}" )
+        if "license" in metadata:
+            print(f"DEBUG: Adding licenses = {metadata['license']}")
+            
+        # ALWAYS add description
+        component["description"] = metadata.get("description", f"AI model {model_id}")
 
         # Add external references
         external_refs = [{
@@ -490,17 +448,18 @@ class AIBOMGenerator:
             })
         component["externalReferences"] = external_refs
 
-        # Add authors, publisher, supplier, manufacturer
-        if "author" in metadata and metadata["author"]:
-            component["authors"] = [{"name": metadata["author"]}]
-            component["publisher"] = metadata["author"]
+        # ALWAYS add author information (use model owner if not available )
+        author_name = metadata.get("author", group if group else "unknown")
+        if author_name and author_name != "unknown":
+            component["authors"] = [{"name": author_name}]
+            component["publisher"] = author_name
             component["supplier"] = {
-                "name": metadata["author"],
-                "url": [f"https://huggingface.co/{metadata['author']}"]
+                "name": author_name,
+                "url": [f"https://huggingface.co/{author_name}"]
             }
             component["manufacturer"] = {
-                "name": metadata["author"],
-                "url": [f"https://huggingface.co/{metadata['author']}"]
+                "name": author_name,
+                "url": [f"https://huggingface.co/{author_name}"]
             }
             
         # Add copyright
@@ -593,19 +552,30 @@ class AIBOMGenerator:
     def _get_license_url(self, license_id: str) -> str:
         """Get the URL for a license based on its SPDX ID."""
         license_urls = {
-            "Apache-2.0": "https://www.apache.org/licenses/LICENSE-2.0",
-            "MIT": "https://opensource.org/licenses/MIT",
-            "BSD-3-Clause": "https://opensource.org/licenses/BSD-3-Clause",
-            "GPL-3.0": "https://www.gnu.org/licenses/gpl-3.0.en.html",
-            "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/",
-            "CC-BY-SA-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
-            "CC-BY-NC-4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
-            "CC-BY-ND-4.0": "https://creativecommons.org/licenses/by-nd/4.0/",
-            "CC-BY-NC-SA-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-            "CC-BY-NC-ND-4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
-            "LGPL-3.0": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
-            "MPL-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
+            "apache-2.0": "https://www.apache.org/licenses/LICENSE-2.0",
+            "mit": "https://opensource.org/licenses/MIT",
+            "bsd-3-clause": "https://opensource.org/licenses/BSD-3-Clause",
+            "gpl-3.0": "https://www.gnu.org/licenses/gpl-3.0.en.html",
+            "cc-by-4.0": "https://creativecommons.org/licenses/by/4.0/",
+            "cc-by-sa-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+            "cc-by-nc-4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
+            "cc-by-nd-4.0": "https://creativecommons.org/licenses/by-nd/4.0/",
+            "cc-by-nc-sa-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            "cc-by-nc-nd-4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+            "lgpl-3.0": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
+            "mpl-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
         }
         
-        return license_urls.get(license_id, "https://spdx.org/licenses/")
+        return license_urls.get(license_id.lower(), "https://spdx.org/licenses/" )
 
+    def _fetch_with_retry(self, fetch_func, *args, max_retries=3, **kwargs):
+        """Fetch data with retry logic for network failures."""
+        for attempt in range(max_retries):
+            try:
+                return fetch_func(*args, **kwargs)
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.warning(f"Failed to fetch after {max_retries} attempts: {e}")
+                    return None
+                time.sleep(1 * (attempt + 1))  # Exponential backoff
+        return None

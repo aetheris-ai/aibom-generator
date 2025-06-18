@@ -304,19 +304,19 @@ def determine_completeness_profile(aibom: Dict[str, Any], score: float) -> Dict[
     # Return the highest satisfied profile
     if "advanced" in satisfied_profiles:
         return {
-            "name": "advanced",
+            "name": "Advanced",
             "description": COMPLETENESS_PROFILES["advanced"]["description"],
             "satisfied": True
         }
     elif "standard" in satisfied_profiles:
         return {
-            "name": "standard",
+            "name": "Standard",
             "description": COMPLETENESS_PROFILES["standard"]["description"],
             "satisfied": True
         }
     elif "basic" in satisfied_profiles:
         return {
-            "name": "basic",
+            "name": "Basic",
             "description": COMPLETENESS_PROFILES["basic"]["description"],
             "satisfied": True
         }
@@ -329,6 +329,7 @@ def determine_completeness_profile(aibom: Dict[str, Any], score: float) -> Dict[
 
 
 def apply_completeness_penalties(original_score: float, missing_fields: Dict[str, List[str]]) -> Dict[str, Any]:
+
     """
     Apply penalties based on missing critical fields.
     
@@ -339,24 +340,26 @@ def apply_completeness_penalties(original_score: float, missing_fields: Dict[str
     Returns:
         Dictionary with penalty information
     """
+    
+    
     # Count missing fields by tier
     missing_critical_count = len(missing_fields["critical"])
     missing_important_count = len(missing_fields["important"])
     
+    penalty_factor = 1.0
+    penalty_reason = None
+    
     # Calculate penalty based on missing critical fields
     if missing_critical_count > 3:
-        penalty_factor = 0.8  # 20% penalty
+        penalty_factor *= 0.8  # 20% penalty
         penalty_reason = "Multiple critical fields missing"
-    elif missing_critical_count > 0:
-        penalty_factor = 0.9  # 10% penalty
+    elif missing_critical_count >= 2: # if count is 2 - 3
+        penalty_factor *= 0.9  # 10% penalty
         penalty_reason = "Some critical fields missing"
-    elif missing_important_count > 5:
-        penalty_factor = 0.95  # 5% penalty
+        
+    if missing_important_count >= 5:
+        penalty_factor *= 0.95  # 5% penalty
         penalty_reason = "Several important fields missing"
-    else:
-        # No penalty
-        penalty_factor = 1.0
-        penalty_reason = None
     
     adjusted_score = original_score * penalty_factor
     
@@ -735,7 +738,7 @@ def _generate_validation_recommendations(issues: List[Dict[str, Any]]) -> List[s
         recommendations.append("Add ethical considerations, limitations, and risks to the model card")
         
     if "MISSING_METADATA" in issue_codes:
-        recommendations.append("Add metadata section to the AIBOM")
+        recommendations.append("Add metadata section to the AI SBOM")
         
     if "MISSING_TOOLS" in issue_codes:
         recommendations.append("Include tools information in the metadata section")
@@ -835,7 +838,7 @@ def get_validation_summary(report: Dict[str, Any]) -> str:
 
 def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Calculate completeness score using industry best practices without explicit standard references.
+    Calculate completeness score using industry best practices with proper normalization and penalties.
     
     Args:
         aibom: The AIBOM to score
@@ -844,6 +847,8 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
         Dictionary containing score and recommendations
     """
     field_checklist = {}
+    
+    # Maximum points for each category (these are the "weights")
     max_scores = {
         "required_fields": 20,
         "metadata": 20,
@@ -852,30 +857,29 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
         "external_references": 10
     }
     
-    # Track missing fields by tier
+    # Track missing fields by tier (for penalty calculation)
     missing_fields = {
         "critical": [],
         "important": [],
         "supplementary": []
     }
     
-    # Score each field based on classification
-    scores_by_category = {category: 0 for category in max_scores.keys()}
-    max_possible_by_category = {category: 0 for category in max_scores.keys()}
+    # Count fields by category
+    fields_by_category = {category: {"total": 0, "present": 0} for category in max_scores.keys()}
     
+    # Process each field and categorize
     for field, classification in FIELD_CLASSIFICATION.items():
         tier = classification["tier"]
-        weight = classification["weight"]
         category = classification["category"]
         
-        # Add to max possible score for this category
-        max_possible_by_category[category] += weight
+        # Count total fields in this category
+        fields_by_category[category]["total"] += 1
         
-        # Check if field is present
-        is_present = check_field_in_aibom(aibom, field)
+        # Check if field is present (ensure boolean result)
+        is_present = bool(check_field_in_aibom(aibom, field))
         
         if is_present:
-            scores_by_category[category] += weight
+            fields_by_category[category]["present"] += 1
         else:
             missing_fields[tier].append(field)
         
@@ -883,51 +887,150 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
         importance_indicator = "★★★" if tier == "critical" else "★★" if tier == "important" else "★"
         field_checklist[field] = f"{'✔' if is_present else '✘'} {importance_indicator}"
     
-    # Normalize category scores to max_scores
-    normalized_scores = {}
-    for category in scores_by_category:
-        if max_possible_by_category[category] > 0:
-            # Normalize to the max score for this category
-            normalized_score = (scores_by_category[category] / max_possible_by_category[category]) * max_scores[category]
-            normalized_scores[category] = min(normalized_score, max_scores[category])
-        else:
-            normalized_scores[category] = 0
+    # Calculate category scores using proper normalization
+    category_scores = {}
+    for category, counts in fields_by_category.items():
+        if counts["total"] > 0:
+            # Normalization: (Present Fields / Total Fields) × Maximum Points
+            raw_score = (counts["present"] / counts["total"]) * max_scores[category]
+            # Ensure raw_score is a number before rounding
+            if isinstance(raw_score, (int, float)) and not isinstance(raw_score, bool):
+                category_scores[category] = round(raw_score, 1)
+            else:
+                category_scores[category] = 0.0
     
-    # Calculate total score (sum of weighted normalized scores)
-    total_score = 0
-    for category, score in normalized_scores.items():
-        # Each category contributes its percentage to the total
-        category_weight = max_scores[category] / sum(max_scores.values())
-        total_score += score * category_weight
+    # Calculate subtotal (sum of rounded category scores)
+    subtotal_score = sum(category_scores.values())
     
-    # Round to one decimal place
-    total_score = round(total_score, 1)
+    # Count missing fields by tier for penalty calculation
+    missing_critical_count = len(missing_fields["critical"])
+    missing_important_count = len(missing_fields["important"])
+    
+    # Apply penalties based on missing critical and important fields
+    penalty_factor = 1.0
+    penalty_reasons = []
+    
+    # Critical field penalties
+    if missing_critical_count > 3:
+        penalty_factor *= 0.8  # 20% penalty
+        penalty_reasons.append("Multiple critical fields missing")
+    elif missing_critical_count >= 2:  # if count is 2-3
+        penalty_factor *= 0.9  # 10% penalty
+        penalty_reasons.append("Some critical fields missing")
+    # No penalty for missing_critical_count == 1
+    
+    # Important field penalties (additional)
+    if missing_important_count >= 5:
+        penalty_factor *= 0.95  # Additional 5% penalty
+        penalty_reasons.append("Several important fields missing")
+    
+    # Apply penalty to subtotal
+    final_score = subtotal_score * penalty_factor
+    final_score = round(final_score, 1)
+
+    # Debugging calculation:
+    print(f"DEBUG CATEGORIES:")
+    for category, score in category_scores.items():
+        print(f"  {category}: {score}")
+    print(f"DEBUG: category_scores sum = {sum(category_scores.values())}")
+    print(f"DEBUG: subtotal_score = {subtotal_score}")
+    print(f"DEBUG: missing_critical_count = {missing_critical_count}")
+    print(f"DEBUG: missing_important_count = {missing_important_count}")
+    print(f"DEBUG: penalty_factor = {penalty_factor}")
+    print(f"DEBUG: penalty_reasons = {penalty_reasons}")
+    print(f"DEBUG: subtotal_score = {subtotal_score}")
+    print(f"DEBUG: final_score calculation = {subtotal_score} × {penalty_factor} = {subtotal_score * penalty_factor}")
+    print(f"DEBUG: final_score after round = {final_score}")
     
     # Ensure score is between 0 and 100
-    total_score = max(0, min(total_score, 100))
+    final_score = max(0.0, min(final_score, 100.0))
     
     # Determine completeness profile
-    profile = determine_completeness_profile(aibom, total_score)
-    
-    # Apply penalties for missing critical fields
-    penalty_result = apply_completeness_penalties(total_score, missing_fields)
+    profile = determine_completeness_profile(aibom, final_score)
     
     # Generate recommendations
     recommendations = generate_field_recommendations(missing_fields)
     
-    return {
-        "total_score": penalty_result["adjusted_score"],
-        "section_scores": normalized_scores,
+    # Prepare penalty information
+    penalty_applied = penalty_factor < 1.0
+    penalty_reason = " and ".join(penalty_reasons) if penalty_reasons else None
+    penalty_percentage = round((1.0 - penalty_factor) * 100, 1) if penalty_applied else 0.0
+
+    # DEBUG: Print the result structure before returning
+    print("DEBUG: Final result structure:")
+    print(f"  total_score: {final_score}")
+    print(f"  section_scores keys: {list(category_scores.keys())}")
+    
+    result = {
+        "total_score": final_score,
+        "subtotal_score": subtotal_score,
+        "section_scores": category_scores,
         "max_scores": max_scores,
         "field_checklist": field_checklist,
+        "category_details": {
+            "required_fields": {
+                "present_fields": fields_by_category["required_fields"]["present"],
+                "total_fields": fields_by_category["required_fields"]["total"],
+                "percentage": round((fields_by_category["required_fields"]["present"] / fields_by_category["required_fields"]["total"]) * 100, 1)
+            },
+            "metadata": {
+                "present_fields": fields_by_category["metadata"]["present"],
+                "total_fields": fields_by_category["metadata"]["total"],
+                "percentage": round((fields_by_category["metadata"]["present"] / fields_by_category["metadata"]["total"]) * 100, 1)
+            },
+            "component_basic": {
+                "present_fields": fields_by_category["component_basic"]["present"],
+                "total_fields": fields_by_category["component_basic"]["total"],
+                "percentage": round((fields_by_category["component_basic"]["present"] / fields_by_category["component_basic"]["total"]) * 100, 1)
+            },
+            "component_model_card": {
+                "present_fields": fields_by_category["component_model_card"]["present"],
+                "total_fields": fields_by_category["component_model_card"]["total"],
+                "percentage": round((fields_by_category["component_model_card"]["present"] / fields_by_category["component_model_card"]["total"]) * 100, 1)
+            },
+            "external_references": {
+                "present_fields": fields_by_category["external_references"]["present"],
+                "total_fields": fields_by_category["external_references"]["total"],
+                "percentage": round((fields_by_category["external_references"]["present"] / fields_by_category["external_references"]["total"]) * 100, 1)
+            }
+        },
         "field_categorization": get_field_categorization_for_display(aibom),
         "field_tiers": {field: info["tier"] for field, info in FIELD_CLASSIFICATION.items()},
         "missing_fields": missing_fields,
+        "missing_counts": {
+            "critical": missing_critical_count,
+            "important": missing_important_count,
+            "supplementary": len(missing_fields["supplementary"])
+        },
         "completeness_profile": profile,
-        "penalty_applied": penalty_result["penalty_applied"],
-        "penalty_reason": penalty_result["penalty_reason"],
-        "recommendations": recommendations
+        "penalty_applied": penalty_applied,
+        "penalty_reason": penalty_reason,
+        "penalty_percentage": penalty_percentage,
+        "penalty_factor": penalty_factor,
+        "recommendations": recommendations,
+        "calculation_details": {
+            "category_breakdown": {
+                category: {
+                    "present_fields": counts["present"],
+                    "total_fields": counts["total"],
+                    "percentage": round((counts["present"] / counts["total"]) * 100, 1) if counts["total"] > 0 else 0.0,
+                    "points": category_scores[category],
+                    "max_points": max_scores[category]
+                }
+                for category, counts in fields_by_category.items()
+            }
+        }
     }
+    
+    # Debug the final result
+    if 'category_details' in result:
+        print(f"  category_details exists: {list(result['category_details'].keys())}")
+        print(f"  required_fields details: {result['category_details'].get('required_fields')}")
+        print(f"  metadata details: {result['category_details'].get('metadata')}")
+    else:
+        print("  category_details: MISSING!")
+    
+    return result
 
 
 def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, use_best_practices: bool = True) -> Dict[str, Any]:
@@ -959,6 +1062,7 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
                 warning_count = validation_result["summary"]["warning_count"]
                 
                 # Apply penalties to the score
+                """
                 if error_count > 0:
                     # Severe penalty for errors (up to 50% reduction)
                     error_penalty = min(0.5, error_count * 0.1)
@@ -969,7 +1073,7 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
                     warning_penalty = min(0.2, warning_count * 0.05)
                     result["total_score"] = round(result["total_score"] * (1 - warning_penalty), 1)
                     result["validation_penalty"] = f"-{int(warning_penalty * 100)}% due to {warning_count} schema warnings"
-
+                """
         result = add_enhanced_field_display_to_result(result, aibom)
         
         return result
@@ -1084,7 +1188,34 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
         "total_score": total_score,
         "section_scores": section_scores,
         "max_scores": max_scores,
-        "field_checklist": field_checklist
+        "field_checklist": field_checklist,
+        "category_details": {
+        "required_fields": {
+            "present_fields": fields_by_category["required_fields"]["present"],
+            "total_fields": fields_by_category["required_fields"]["total"],
+            "percentage": round((fields_by_category["required_fields"]["present"] / fields_by_category["required_fields"]["total"]) * 100, 1)
+        },
+        "metadata": {
+            "present_fields": fields_by_category["metadata"]["present"],
+            "total_fields": fields_by_category["metadata"]["total"],
+            "percentage": round((fields_by_category["metadata"]["present"] / fields_by_category["metadata"]["total"]) * 100, 1)
+        },
+        "component_basic": {
+            "present_fields": fields_by_category["component_basic"]["present"],
+            "total_fields": fields_by_category["component_basic"]["total"],
+            "percentage": round((fields_by_category["component_basic"]["present"] / fields_by_category["component_basic"]["total"]) * 100, 1)
+        },
+        "component_model_card": {
+            "present_fields": fields_by_category["component_model_card"]["present"],
+            "total_fields": fields_by_category["component_model_card"]["total"],
+            "percentage": round((fields_by_category["component_model_card"]["present"] / fields_by_category["component_model_card"]["total"]) * 100, 1)
+        },
+        "external_references": {
+            "present_fields": fields_by_category["external_references"]["present"],
+            "total_fields": fields_by_category["external_references"]["total"],
+            "percentage": round((fields_by_category["external_references"]["present"] / fields_by_category["external_references"]["total"]) * 100, 1)
+        }
+     }
     }
     
     # Add validation if requested
@@ -1097,7 +1228,8 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
             # Count errors and warnings
             error_count = validation_result["summary"]["error_count"]
             warning_count = validation_result["summary"]["warning_count"]
-            
+
+            """
             # Apply penalties to the score
             if error_count > 0:
                 # Severe penalty for errors (up to 50% reduction)
@@ -1109,7 +1241,7 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
                 warning_penalty = min(0.2, warning_count * 0.05)
                 result["total_score"] = round(result["total_score"] * (1 - warning_penalty), 1)
                 result["validation_penalty"] = f"-{int(warning_penalty * 100)}% due to {warning_count} schema warnings"
-
+            """
     result = add_enhanced_field_display_to_result(result, aibom)
     
     return result
@@ -1305,3 +1437,92 @@ def add_enhanced_field_display_to_result(result: Dict[str, Any], aibom: Dict[str
     enhanced_result = result.copy()
     enhanced_result["field_display"] = get_field_categorization_for_display(aibom)
     return enhanced_result
+
+
+def get_score_display_info(score_result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate user-friendly display information for the score.
+    
+    Args:
+        score_result: Result from calculate_industry_neutral_score
+        
+    Returns:
+        Dictionary with display-friendly information
+    """
+    display_info = {
+        "category_display": [],
+        "penalty_display": None,
+        "total_display": None
+    }
+    
+    # Format category scores for display
+    for category, score in score_result["section_scores"].items():
+        max_score = score_result["max_scores"][category]
+        category_name = category.replace("_", " ").title()
+        
+        display_info["category_display"].append({
+            "name": category_name,
+            "score": f"{score}/{max_score}",
+            "percentage": round((score / max_score) * 100, 1) if max_score > 0 else 0.0
+        })
+    
+    # Format penalty display
+    if score_result["penalty_applied"]:
+        display_info["penalty_display"] = {
+            "message": f"Penalty Applied: -{score_result['penalty_percentage']}% ({score_result['penalty_reason']})",
+            "subtotal": f"{score_result['subtotal_score']}/100",
+            "final": f"{score_result['total_score']}/100"
+        }
+    
+    # Format total display
+    display_info["total_display"] = {
+        "score": f"{score_result['total_score']}/100",
+        "percentage": round(score_result['total_score'], 1)
+    }
+    
+    return display_info
+
+
+def format_score_summary(score_result: Dict[str, Any]) -> str:
+    """
+    Generate a human-readable summary of the scoring results.
+    
+    Args:
+        score_result: Result from calculate_industry_neutral_score
+        
+    Returns:
+        Formatted summary string
+    """
+    summary = "AI SBOM Completeness Score Summary\n"
+    summary += "=" * 40 + "\n\n"
+    
+    # Category breakdown
+    summary += "Category Breakdown:\n"
+    for category, score in score_result["section_scores"].items():
+        max_score = score_result["max_scores"][category]
+        category_name = category.replace("_", " ").title()
+        percentage = round((score / max_score) * 100, 1) if max_score > 0 else 0.0
+        summary += f"- {category_name}: {score}/{max_score} ({percentage}%)\n"
+    
+    summary += f"\nSubtotal: {score_result['subtotal_score']}/100\n"
+    
+    # Penalty information
+    if score_result["penalty_applied"]:
+        summary += f"\nPenalty Applied: -{score_result['penalty_percentage']}%\n"
+        summary += f"Reason: {score_result['penalty_reason']}\n"
+        summary += f"Final Score: {score_result['total_score']}/100\n"
+    else:
+        summary += f"Final Score: {score_result['total_score']}/100 (No penalties applied)\n"
+    
+    # Missing field counts
+    summary += f"\nMissing Fields Summary:\n"
+    summary += f"- Critical: {score_result['missing_counts']['critical']}\n"
+    summary += f"- Important: {score_result['missing_counts']['important']}\n"
+    summary += f"- Supplementary: {score_result['missing_counts']['supplementary']}\n"
+    
+    # Completeness profile
+    profile = score_result["completeness_profile"]
+    summary += f"\nCompleteness Profile: {profile['name']}\n"
+    summary += f"Description: {profile['description']}\n"
+    
+    return summary
