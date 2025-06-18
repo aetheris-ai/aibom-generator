@@ -455,16 +455,18 @@ def create_comprehensive_completeness_score(aibom=None):
             return calculate_completeness_score(aibom, validate=True, use_best_practices=True)
         except Exception as e:
             logger.error(f"Error calculating completeness score: {str(e)}")
-
+            raise ValueError(f"Failed to calculate completeness score: {str(e)}")
+        else:
+            raise ValueError("AIBOM object not provided or scoring function not available.")
     # Otherwise, return a default comprehensive structure
     return {
-        "total_score": 75.5,  # Default score for better UI display
+        "total_score": 0,  # Default score for better UI display
         "section_scores": {
-            "required_fields": 20,
-            "metadata": 15,
-            "component_basic": 18,
-            "component_model_card": 15,
-            "external_references": 7.5
+            "required_fields": 0,
+            "metadata": 0,
+            "component_basic": 0,
+            "component_model_card": 0,
+            "external_references": 0
         },
         "max_scores": {
             "required_fields": 20,
@@ -475,53 +477,53 @@ def create_comprehensive_completeness_score(aibom=None):
         },
         "field_checklist": {
             # Required fields
-            "bomFormat": "✔ ★★★",
-            "specVersion": "✔ ★★★",
-            "serialNumber": "✔ ★★★",
-            "version": "✔ ★★★",
-            "metadata.timestamp": "✔ ★★",
-            "metadata.tools": "✔ ★★",
-            "metadata.authors": "✔ ★★",
-            "metadata.component": "✔ ★★",
+            "bomFormat": "n/a ★★★",
+            "specVersion": "n/a ★★★",
+            "serialNumber": "n/a ★★★",
+            "version": "n/a ★★★",
+            "metadata.timestamp": "n/a ★★",
+            "metadata.tools": "n/a ★★",
+            "metadata.authors": "n/a ★★",
+            "metadata.component": "n/a ★★",
 
             # Component basic info
-            "component.type": "✔ ★★",
-            "component.name": "✔ ★★★",
-            "component.bom-ref": "✔ ★★",
-            "component.purl": "✔ ★★",
-            "component.description": "✔ ★★",
-            "component.licenses": "✔ ★★",
+            "component.type": "n/a ★★",
+            "component.name": "n/a ★★★",
+            "component.bom-ref": "n/a ★★",
+            "component.purl": "n/a ★★",
+            "component.description": "n/a ★★",
+            "component.licenses": "n/a ★★",
 
             # Model card
-            "modelCard.modelParameters": "✔ ★★",
-            "modelCard.quantitativeAnalysis": "✘ ★★",
-            "modelCard.considerations": "✔ ★★",
+            "modelCard.modelParameters": "n/a ★★",
+            "modelCard.quantitativeAnalysis": "n/a ★★",
+            "modelCard.considerations": "n/a ★★",
 
             # External references
-            "externalReferences": "✔ ★",
+            "externalReferences": "n/a ★",
 
             # Additional fields from FIELD_CLASSIFICATION
-            "name": "✔ ★★★",
-            "downloadLocation": "✔ ★★★",
-            "primaryPurpose": "✔ ★★★",
-            "suppliedBy": "✔ ★★★",
-            "energyConsumption": "✘ ★★",
-            "hyperparameter": "✔ ★★",
-            "limitation": "✔ ★★",
-            "safetyRiskAssessment": "✘ ★★",
-            "typeOfModel": "✔ ★★",
-            "modelExplainability": "✘ ★",
-            "standardCompliance": "✘ ★",
-            "domain": "✔ ★",
-            "energyQuantity": "✘ ★",
-            "energyUnit": "✘ ★",
-            "informationAboutTraining": "✔ ★",
-            "informationAboutApplication": "✔ ★",
-            "metric": "✘ ★",
-            "metricDecisionThreshold": "✘ ★",
-            "modelDataPreprocessing": "✘ ★",
-            "autonomyType": "✘ ★",
-            "useSensitivePersonalInformation": "✘ ★"
+            "name": "n/a ★★★",
+            "downloadLocation": "n/a ★★★",
+            "primaryPurpose": "n/a ★★★",
+            "suppliedBy": "n/a ★★★",
+            "energyConsumption": "n/a ★★",
+            "hyperparameter": "n/a ★★",
+            "limitation": "n/a ★★",
+            "safetyRiskAssessment": "n/a ★★",
+            "typeOfModel": "n/a ★★",
+            "modelExplainability": "n/a ★",
+            "standardCompliance": "n/a ★",
+            "domain": "n/a ★",
+            "energyQuantity": "n/a ★",
+            "energyUnit": "n/a ★",
+            "informationAboutTraining": "n/a ★",
+            "informationAboutApplication": "n/a ★",
+            "metric": "n/a ★",
+            "metricDecisionThreshold": "n/a ★",
+            "modelDataPreprocessing": "n/a ★",
+            "autonomyType": "n/a ★",
+            "useSensitivePersonalInformation": "n/a ★"
         },
         "field_tiers": {
             # Required fields
@@ -697,7 +699,6 @@ async def generate_form(
         enhancement_report = generator.get_enhancement_report()
 
         # Save AIBOM to file, use industry term ai_sbom in file name
-        # Corrected: Removed unnecessary backslashes around '/' and '_'
         # Save AIBOM to file using normalized ID
         filename = f"{normalized_model_id.replace('/', '_')}_ai_sbom.json"
         filepath = os.path.join(OUTPUT_DIR, filename)
@@ -766,6 +767,7 @@ async def generate_form(
             except Exception as e:
                 logger.error(f"Completeness score error from generator: {str(e)}")
 
+
         # If completeness_score is None or doesn't have field_checklist, use comprehensive one
         if completeness_score is None or not isinstance(completeness_score, dict) or 'field_checklist' not in completeness_score:
             logger.info("Using comprehensive completeness_score with field_checklist")
@@ -818,6 +820,32 @@ async def generate_form(
             "external_references": 10
         }
 
+        # DEBUG: Check for undefined values before template rendering
+        print("DEBUG: Checking completeness_score for undefined values:")
+        if completeness_score and 'section_scores' in completeness_score:
+            for key, value in completeness_score['section_scores'].items():
+                print(f"  {key}: {value} (type: {type(value)})")
+        else:
+            print("  No section_scores found in completeness_score")
+        
+        # DEBUG: Template data check
+        print("DEBUG: Template data check:")
+        if completeness_score:
+            print(f"  completeness_score keys: {list(completeness_score.keys())}")
+            if 'category_details' in completeness_score:
+                print(f"  category_details exists: {list(completeness_score['category_details'].keys())}")
+                # Check each category
+                for category in ['required_fields', 'metadata', 'component_basic', 'component_model_card', 'external_references']:
+                    if category in completeness_score['category_details']:
+                        details = completeness_score['category_details'][category]
+                        print(f"    {category}: present={details.get('present_fields')}, total={details.get('total_fields')}, percentage={details.get('percentage')}")
+                    else:
+                        print(f"    {category}: MISSING from category_details")
+            else:
+                print("  category_details: NOT FOUND in completeness_score!")
+        else:
+            print("  completeness_score: IS NONE!")
+        
         # Render the template with all necessary data, with normalized model ID
         return templates.TemplateResponse(
             "result.html",
@@ -1111,7 +1139,7 @@ async def get_model_score(
             # Round section scores for better readability
             for section, value in score["section_scores"].items():
                 if isinstance(value, float) and not value.is_integer():
-                    score["section_scores"][section] = round(value, 1)
+                    score["section_scores"][section] = round(float(value), 1) if value is not None and value != "Undefined" else 0.0
             
             # Return score information
             return {
