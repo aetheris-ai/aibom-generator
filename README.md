@@ -1,6 +1,6 @@
 # 🤖 AI SBOM Generator
 
-This is the official GitHub repository for the **AI SBOM Generator** — an open-source tool for generating AI Software Bills of Materials (AI SBOMs) in [CycloneDX](https://cyclonedx.org) format.
+This is the official GitHub repository for the **AI SBOM Generator** — an open-source tool for generating AI Software Bills of Materials (AI SBOMs) in [CycloneDX](https://cyclonedx.org) format. The tool is also listed on [CycloneDX Tool Center](https://cyclonedx.org/tool-center/).
 
 🚀 **Try the tool live:**  
 

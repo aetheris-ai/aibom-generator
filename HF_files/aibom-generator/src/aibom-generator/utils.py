@@ -1,5 +1,5 @@
 """
-Utility functions for the AI SBOM Generator.
+Mostly score calculation functions for the AI SBOM Generator.
 """
 
 import json
@@ -9,6 +9,14 @@ import re
 import uuid
 from typing import Dict, List, Optional, Any, Union, Tuple
 from enum import Enum
+from .field_registry_manager import (
+    get_field_registry_manager,
+    generate_field_classification,
+    generate_completeness_profiles,
+    generate_validation_messages,
+    get_configurable_scoring_weights,
+    DynamicFieldDetector  # Compatibility wrapper
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,98 +26,123 @@ class ValidationSeverity(Enum):
     WARNING = "warning"
     INFO = "info"
 
-# Field classification based on documentation value (silently aligned with SPDX)
-FIELD_CLASSIFICATION = {
-    # Critical fields (silently aligned with SPDX mandatory fields)
-    "bomFormat": {"tier": "critical", "weight": 3, "category": "required_fields"},
-    "specVersion": {"tier": "critical", "weight": 3, "category": "required_fields"},
-    "serialNumber": {"tier": "critical", "weight": 3, "category": "required_fields"},
-    "version": {"tier": "critical", "weight": 3, "category": "required_fields"},
-    "name": {"tier": "critical", "weight": 4, "category": "component_basic"},
-    "downloadLocation": {"tier": "critical", "weight": 4, "category": "external_references"},
-    "primaryPurpose": {"tier": "critical", "weight": 3, "category": "metadata"},
-    "suppliedBy": {"tier": "critical", "weight": 4, "category": "metadata"},
+# Registry-driven field definitions
+try:
+    REGISTRY_MANAGER = get_field_registry_manager()
+    FIELD_CLASSIFICATION = generate_field_classification()
+    COMPLETENESS_PROFILES = generate_completeness_profiles()
+    VALIDATION_MESSAGES = generate_validation_messages()
+    SCORING_WEIGHTS = get_configurable_scoring_weights()
     
-    # Important fields (aligned with key SPDX optional fields)
-    "type": {"tier": "important", "weight": 2, "category": "component_basic"},
-    "purl": {"tier": "important", "weight": 4, "category": "component_basic"},
-    "description": {"tier": "important", "weight": 4, "category": "component_basic"},
-    "licenses": {"tier": "important", "weight": 4, "category": "component_basic"},
-    "energyConsumption": {"tier": "important", "weight": 3, "category": "component_model_card"},
-    "hyperparameter": {"tier": "important", "weight": 3, "category": "component_model_card"},
-    "limitation": {"tier": "important", "weight": 3, "category": "component_model_card"},
-    "safetyRiskAssessment": {"tier": "important", "weight": 3, "category": "component_model_card"},
-    "typeOfModel": {"tier": "important", "weight": 3, "category": "component_model_card"},
+    print(f"✅ Registry-driven configuration loaded: {len(FIELD_CLASSIFICATION)} fields")
+    REGISTRY_AVAILABLE = True
     
-    # Supplementary fields (aligned with remaining SPDX optional fields)
-    "modelExplainability": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "standardCompliance": {"tier": "supplementary", "weight": 2, "category": "metadata"},
-    "domain": {"tier": "supplementary", "weight": 2, "category": "metadata"},
-    "energyQuantity": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "energyUnit": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "informationAboutTraining": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "informationAboutApplication": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "metric": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "metricDecisionThreshold": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "modelDataPreprocessing": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
-    "autonomyType": {"tier": "supplementary", "weight": 1, "category": "metadata"},
-    "useSensitivePersonalInformation": {"tier": "supplementary", "weight": 2, "category": "component_model_card"}
-}
-
-# Completeness profiles (silently aligned with SPDX requirements)
-COMPLETENESS_PROFILES = {
-    "basic": {
-        "description": "Minimal fields required for identification",
-        "required_fields": ["bomFormat", "specVersion", "serialNumber", "version", "name"],
-        "minimum_score": 40
-    },
-    "standard": {
-        "description": "Comprehensive fields for proper documentation",
-        "required_fields": ["bomFormat", "specVersion", "serialNumber", "version", "name", 
-                           "downloadLocation", "primaryPurpose", "suppliedBy"],
-        "minimum_score": 70
-    },
-    "advanced": {
-        "description": "Extensive documentation for maximum transparency",
-        "required_fields": ["bomFormat", "specVersion", "serialNumber", "version", "name", 
-                           "downloadLocation", "primaryPurpose", "suppliedBy",
-                           "type", "purl", "description", "licenses", "hyperparameter", "limitation", 
-                           "energyConsumption", "safetyRiskAssessment", "typeOfModel"],
-        "minimum_score": 85
+except Exception as e:
+    print(f"❌ Failed to load registry configuration: {e}")
+    print("🔄 Falling back to hardcoded definitions...")
+    REGISTRY_AVAILABLE = False
+    
+    # Hardcoded definitions as fallback
+    FIELD_CLASSIFICATION = {
+        # Critical fields (silently aligned with SPDX mandatory fields)
+        "bomFormat": {"tier": "critical", "weight": 3, "category": "required_fields"},
+        "specVersion": {"tier": "critical", "weight": 3, "category": "required_fields"},
+        "serialNumber": {"tier": "critical", "weight": 3, "category": "required_fields"},
+        "version": {"tier": "critical", "weight": 3, "category": "required_fields"},
+        "name": {"tier": "critical", "weight": 4, "category": "component_basic"},
+        "downloadLocation": {"tier": "critical", "weight": 4, "category": "external_references"},
+        "primaryPurpose": {"tier": "critical", "weight": 3, "category": "metadata"},
+        "suppliedBy": {"tier": "critical", "weight": 4, "category": "metadata"},
+        
+        # Important fields (aligned with key SPDX optional fields)
+        "type": {"tier": "important", "weight": 2, "category": "component_basic"},
+        "purl": {"tier": "important", "weight": 4, "category": "component_basic"},
+        "description": {"tier": "important", "weight": 4, "category": "component_basic"},
+        "licenses": {"tier": "important", "weight": 4, "category": "component_basic"},
+        "energyConsumption": {"tier": "important", "weight": 3, "category": "component_model_card"},
+        "hyperparameter": {"tier": "important", "weight": 3, "category": "component_model_card"},
+        "limitation": {"tier": "important", "weight": 3, "category": "component_model_card"},
+        "safetyRiskAssessment": {"tier": "important", "weight": 3, "category": "component_model_card"},
+        "typeOfModel": {"tier": "important", "weight": 3, "category": "component_model_card"},
+        
+        # Supplementary fields (aligned with remaining SPDX optional fields)
+        "modelExplainability": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "standardCompliance": {"tier": "supplementary", "weight": 2, "category": "metadata"},
+        "domain": {"tier": "supplementary", "weight": 2, "category": "metadata"},
+        "energyQuantity": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "energyUnit": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "informationAboutTraining": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "informationAboutApplication": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "metric": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "metricDecisionThreshold": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "modelDataPreprocessing": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+        "autonomyType": {"tier": "supplementary", "weight": 1, "category": "metadata"},
+        "useSensitivePersonalInformation": {"tier": "supplementary", "weight": 2, "category": "component_model_card"}
     }
-}
-
-# Validation messages framed as best practices
-VALIDATION_MESSAGES = {
-    "name": {
-        "missing": "Missing critical field: name - essential for model identification",
-        "recommendation": "Add a descriptive name for the model"
-    },
-    "downloadLocation": {
-        "missing": "Missing critical field: downloadLocation - needed for artifact retrieval",
-        "recommendation": "Add information about where the model can be downloaded"
-    },
-    "primaryPurpose": {
-        "missing": "Missing critical field: primaryPurpose - important for understanding model intent",
-        "recommendation": "Add information about the primary purpose of this model"
-    },
-    "suppliedBy": {
-        "missing": "Missing critical field: suppliedBy - needed for provenance tracking",
-        "recommendation": "Add information about who supplied this model"
-    },
-    "energyConsumption": {
-        "missing": "Missing important field: energyConsumption - helpful for environmental impact assessment",
-        "recommendation": "Consider documenting energy consumption metrics for better transparency"
-    },
-    "hyperparameter": {
-        "missing": "Missing important field: hyperparameter - valuable for reproducibility",
-        "recommendation": "Document key hyperparameters used in training"
-    },
-    "limitation": {
-        "missing": "Missing important field: limitation - important for responsible use",
-        "recommendation": "Document known limitations of the model to guide appropriate usage"
+    
+    # Completeness profiles (silently aligned with SPDX requirements)
+    COMPLETENESS_PROFILES = {
+        "basic": {
+            "description": "Minimal fields required for identification",
+            "required_fields": ["bomFormat", "specVersion", "serialNumber", "version", "name"],
+            "minimum_score": 40
+        },
+        "standard": {
+            "description": "Comprehensive fields for proper documentation",
+            "required_fields": ["bomFormat", "specVersion", "serialNumber", "version", "name", 
+                               "downloadLocation", "primaryPurpose", "suppliedBy"],
+            "minimum_score": 70
+        },
+        "advanced": {
+            "description": "Extensive documentation for maximum transparency",
+            "required_fields": ["bomFormat", "specVersion", "serialNumber", "version", "name", 
+                               "downloadLocation", "primaryPurpose", "suppliedBy",
+                               "type", "purl", "description", "licenses", "hyperparameter", "limitation", 
+                               "energyConsumption", "safetyRiskAssessment", "typeOfModel"],
+            "minimum_score": 85
+        }
     }
-}
+    
+    # Validation messages framed as best practices
+    VALIDATION_MESSAGES = {
+        "name": {
+            "missing": "Missing critical field: name - essential for model identification",
+            "recommendation": "Add a descriptive name for the model"
+        },
+        "downloadLocation": {
+            "missing": "Missing critical field: downloadLocation - needed for artifact retrieval",
+            "recommendation": "Add information about where the model can be downloaded"
+        },
+        "primaryPurpose": {
+            "missing": "Missing critical field: primaryPurpose - important for understanding model intent",
+            "recommendation": "Add information about the primary purpose of this model"
+        },
+        "suppliedBy": {
+            "missing": "Missing critical field: suppliedBy - needed for provenance tracking",
+            "recommendation": "Add information about who supplied this model"
+        },
+        "energyConsumption": {
+            "missing": "Missing important field: energyConsumption - helpful for environmental impact assessment",
+            "recommendation": "Consider documenting energy consumption metrics for better transparency"
+        },
+        "hyperparameter": {
+            "missing": "Missing important field: hyperparameter - valuable for reproducibility",
+            "recommendation": "Document key hyperparameters used in training"
+        },
+        "limitation": {
+            "missing": "Missing important field: limitation - important for responsible use",
+            "recommendation": "Document known limitations of the model to guide appropriate usage"
+        }
+    }
+    
+    SCORING_WEIGHTS = {
+        "tier_weights": {"critical": 3, "important": 2, "supplementary": 1},
+        "category_weights": {
+            "required_fields": 20, "metadata": 20, "component_basic": 20,
+            "component_model_card": 30, "external_references": 10
+        },
+        "algorithm_config": {"type": "weighted_sum", "max_score": 100}
+    }
 
 
 def setup_logging(level=logging.INFO):
@@ -207,75 +240,51 @@ def check_field_in_aibom(aibom: Dict[str, Any], field: str) -> bool:
     Returns:
         True if the field is present, False otherwise
     """
-    # Check in root level
     if field in aibom:
         return True
-        
-    # Check in metadata
     if "metadata" in aibom:
         metadata = aibom["metadata"]
         if field in metadata:
             return True
-            
-        # Check in metadata properties
         if "properties" in metadata:
             for prop in metadata["properties"]:
-                if prop.get("name") == f"spdx:{field}" or prop.get("name") == field:
+                prop_name = prop.get("name", "")
+                if prop_name in {field, f"spdx:{field}"}:
                     return True
-    
-    # Check in components
     if "components" in aibom and aibom["components"]:
-        component = aibom["components"][0]  # Use first component
-        
+        component = aibom["components"][0]
         if field in component:
             return True
-            
-        # Check in component properties
         if "properties" in component:
             for prop in component["properties"]:
-                if prop.get("name") == f"spdx:{field}" or prop.get("name") == field:
+                prop_name = prop.get("name", "")
+                if prop_name in {field, f"spdx:{field}"}:
                     return True
-                
-        # Check in model card
         if "modelCard" in component:
             model_card = component["modelCard"]
-            
             if field in model_card:
                 return True
-                
-            # Check in model parameters
-            if "modelParameters" in model_card:
-                if field in model_card["modelParameters"]:
-                    return True
-                    
-                # Check in model parameters properties
-                if "properties" in model_card["modelParameters"]:
-                    for prop in model_card["modelParameters"]["properties"]:
-                        if prop.get("name") == f"spdx:{field}" or prop.get("name") == field:
-                            return True
-            
-            # Check in considerations
+            if "modelParameters" in model_card and field in model_card["modelParameters"]:
+                return True
             if "considerations" in model_card:
-                if field in model_card["considerations"]:
+                considerations = model_card["considerations"]
+                field_mappings = {
+                    "limitation": ["technicalLimitations", "limitations"],
+                    "safetyRiskAssessment": ["ethicalConsiderations", "safetyRiskAssessment"],
+                    "energyConsumption": ["environmentalConsiderations", "energyConsumption"]
+                }
+                if field in field_mappings:
+                    for section in field_mappings[field]:
+                        if section in considerations and considerations[section]:
+                            return True
+                if field in considerations:
                     return True
-                
-                # Check in specific consideration sections
-                for section in ["technicalLimitations", "ethicalConsiderations", "environmentalConsiderations"]:
-                    if section in model_card["considerations"]:
-                        if field == "limitation" and section == "technicalLimitations":
-                            return True
-                        if field == "safetyRiskAssessment" and section == "ethicalConsiderations":
-                            return True
-                        if field == "energyConsumption" and section == "environmentalConsiderations":
-                            return True
-    
-    # Check in external references
     if field == "downloadLocation" and "externalReferences" in aibom:
         for ref in aibom["externalReferences"]:
-            if ref.get("type") == "distribution":
+            if ref.get("type") == "distribution" and ref.get("url"):
                 return True
-    
     return False
+
 
 
 def determine_completeness_profile(aibom: Dict[str, Any], score: float) -> Dict[str, Any]:
@@ -835,8 +844,113 @@ def get_validation_summary(report: Dict[str, Any]) -> str:
             
     return summary
 
+def check_field_with_enhanced_results(aibom: Dict[str, Any], field: str, extraction_results: Optional[Dict[str, Any]] = None) -> bool:
+    """
+    Enhanced field detection using consolidated field registry manager.
+    
+    Args:
+        aibom: The AIBOM to check
+        field: The field name to check (must match field registry)
+        extraction_results: Enhanced extraction results with confidence levels
+        
+    Returns:
+        True if the field is present and should count toward score, False otherwise
+    """
+    try:
+        # Initialize dynamic field detector (cached)
+        if not hasattr(check_field_with_enhanced_results, '_detector'):
+            try:
+                if REGISTRY_AVAILABLE:
+                    # Use the consolidated registry manager
+                    registry_manager = get_field_registry_manager()
+                    check_field_with_enhanced_results._detector = DynamicFieldDetector(registry_manager)
+                    print(f"✅ Dynamic field detector initialized with registry manager")
+                else:
+                    # Create registry manager from path
+                    from field_registry_manager import FieldRegistryManager
+                    registry_path = os.path.join(current_dir, "field_registry.json")
+                    registry_manager = FieldRegistryManager(registry_path)
+                    check_field_with_enhanced_results._detector = DynamicFieldDetector(registry_manager)
+                    print(f"✅ Dynamic field detector initialized with fallback registry manager")
+                    
+            except Exception as e:
+                print(f"❌ Failed to initialize dynamic field detector: {e}")
+                # Final fallback
+                import os
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                registry_path = os.path.join(current_dir, "field_registry.json")
+                try:
+                    check_field_with_enhanced_results._detector = DynamicFieldDetector(registry_path)
+                    print(f"🔄 Dynamic field detector initialized with emergency fallback")
+                except Exception as final_error:
+                    print(f"❌ Complete failure to initialize dynamic field detector: {final_error}")
+                    check_field_with_enhanced_results._detector = None
+        
+        detector = check_field_with_enhanced_results._detector
+        
+        if detector is None:
+            print(f"⚠️  No detector available, using fallback for {field}")
+            return check_field_in_aibom(aibom, field)
+        
+        # First, try dynamic detection from AIBOM structure using ENHANCED REGISTRY FORMAT
+        field_found_in_registry = False
+        
+        # Use the enhanced registry structure (registry['fields'][field_name])
+        fields = detector.registry.get('fields', {})
+        if field in fields:
+            field_found_in_registry = True
+            field_config = fields[field]
+            field_path = field_config.get('jsonpath', '')
+            
+            if field_path:
+                # Use dynamic detection
+                is_present, value = detector.detect_field_presence(aibom, field_path)
+                
+                if is_present:
+                    print(f"✅ DYNAMIC: Found {field} = {value}")
+                    return True
+                else:
+                    print(f"❌ DYNAMIC: Missing {field} at {field_path}")
+            else:
+                print(f"⚠️  Field '{field}' has no jsonpath defined in registry")
+        
+        # If field not in registry, log warning but continue
+        if not field_found_in_registry:
+            print(f"⚠️  WARNING: Field '{field}' not found in field registry")
+        
+        # Second, check extraction results (existing logic)
+        if extraction_results and field in extraction_results:
+            extraction_result = extraction_results[field]
+            
+            # Check if this field has actual extracted data (not just placeholder)
+            if hasattr(extraction_result, 'confidence'):
+                # Don't count fields with 'none' confidence (placeholders like NOASSERTION)
+                if extraction_result.confidence.value == 'none':
+                    print(f"❌ EXTRACTION: {field} has 'none' confidence")
+                    return False
+                # Count fields with medium or high confidence
+                is_confident = extraction_result.confidence.value in ['medium', 'high']
+                print(f"{'✅' if is_confident else '❌'} EXTRACTION: {field} confidence = {extraction_result.confidence.value}")
+                return is_confident
+            elif hasattr(extraction_result, 'value'):
+                # For simple extraction results, check if value is meaningful
+                value = extraction_result.value
+                if value in ['NOASSERTION', 'NOT_FOUND', None, '']:
+                    print(f"❌ EXTRACTION: {field} has placeholder value: {value}")
+                    return False
+                print(f"✅ EXTRACTION: {field} = {value}")
+                return True
+        
+        # Third, fallback to original AIBOM detection
+        print(f"🔄 FALLBACK: Using original detection for {field}")
+        return check_field_in_aibom(aibom, field)
+        
+    except Exception as e:
+        print(f"❌ Error in enhanced field detection for {field}: {e}")
+        return check_field_in_aibom(aibom, field)
 
-def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
+
+def calculate_industry_neutral_score(aibom: Dict[str, Any], extraction_results: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Calculate completeness score using industry best practices with proper normalization and penalties.
     
@@ -875,8 +989,8 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
         # Count total fields in this category
         fields_by_category[category]["total"] += 1
         
-        # Check if field is present (ensure boolean result)
-        is_present = bool(check_field_in_aibom(aibom, field))
+        # Enhanced field detection using extraction results
+        is_present = check_field_with_enhanced_results(aibom, field, extraction_results)
         
         if is_present:
             fields_by_category[category]["present"] += 1
@@ -898,6 +1012,19 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
                 category_scores[category] = round(raw_score, 1)
             else:
                 category_scores[category] = 0.0
+
+    # Log field extraction summary
+    total_fields = sum(counts["total"] for counts in fields_by_category.values())
+    total_present = sum(counts["present"] for counts in fields_by_category.values())
+    
+    print(f"📊 SCORING SUMMARY:")
+    print(f"   Total fields evaluated: {total_fields}")
+    print(f"   Fields successfully extracted: {total_present}")
+    print(f"   Extraction success rate: {round((total_present/total_fields)*100, 1)}%")
+    print(f"   Category breakdown:")
+    for category, counts in fields_by_category.items():
+        percentage = round((counts["present"]/counts["total"])*100, 1) if counts["total"] > 0 else 0
+        print(f"     {category}: {counts['present']}/{counts['total']} ({percentage}%)")
     
     # Calculate subtotal (sum of rounded category scores)
     subtotal_score = sum(category_scores.values())
@@ -1033,7 +1160,7 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, use_best_practices: bool = True) -> Dict[str, Any]:
+def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, use_best_practices: bool = True, extraction_results: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Calculate completeness score for an AIBOM and optionally validate against AI requirements.
     Enhanced with industry best practices scoring.
@@ -1046,9 +1173,16 @@ def calculate_completeness_score(aibom: Dict[str, Any], validate: bool = True, u
     Returns:
         Dictionary containing score and validation results
     """
+    print(f"🔍 DEBUG: use_best_practices={use_best_practices}")
+    print(f"🔍 DEBUG: extraction_results is None: {extraction_results is None}")
+    print(f"🔍 DEBUG: extraction_results keys: {list(extraction_results.keys()) if extraction_results else 'None'}")
+    
+    if use_best_practices:
+        print("🔍 DEBUG: Calling calculate_industry_neutral_score")
+        result = calculate_industry_neutral_score(aibom, extraction_results)
     # If using best practices scoring, use the enhanced industry-neutral approach
     if use_best_practices:
-        result = calculate_industry_neutral_score(aibom)
+        result = calculate_industry_neutral_score(aibom, extraction_results)
         
         # Add validation if requested
         if validate:
@@ -1526,3 +1660,63 @@ def format_score_summary(score_result: Dict[str, Any]) -> str:
     summary += f"Description: {profile['description']}\n"
     
     return summary
+
+def test_consolidated_integration():
+    """Test that consolidated field registry manager integration is working"""
+    try:
+        print("\n🧪 Testing Consolidated Integration...")
+        
+        # Test registry availability
+        if REGISTRY_AVAILABLE:
+            print("✅ Consolidated registry manager available")
+            
+            # Test registry manager
+            manager = get_field_registry_manager()
+            print(f"✅ Registry manager initialized: {manager.registry_path}")
+            
+            # Test field classification generation
+            field_count = len(FIELD_CLASSIFICATION)
+            print(f"✅ FIELD_CLASSIFICATION loaded: {field_count} fields")
+            
+            # Test completeness profiles
+            profile_count = len(COMPLETENESS_PROFILES)
+            print(f"✅ COMPLETENESS_PROFILES loaded: {profile_count} profiles")
+            
+            # Test validation messages
+            message_count = len(VALIDATION_MESSAGES)
+            print(f"✅ VALIDATION_MESSAGES loaded: {message_count} messages")
+            
+            # Test scoring weights
+            tier_weights = SCORING_WEIGHTS.get("tier_weights", {})
+            category_weights = SCORING_WEIGHTS.get("category_weights", {})
+            print(f"✅ SCORING_WEIGHTS loaded: {len(tier_weights)} tiers, {len(category_weights)} categories")
+            
+        else:
+            print("⚠️  Consolidated registry manager not available, using hardcoded definitions")
+        
+        # Test dynamic field detector (DynamicFieldDetector)
+        if hasattr(check_field_with_enhanced_results, '_detector') and check_field_with_enhanced_results._detector:
+            print(f"✅ Dynamic field detector ready")
+        else:
+            print(f"⚠️  Dynamic field detector not initialized")
+        
+        # Test field lookup
+        test_fields = ["bomFormat", "primaryPurpose", "energyConsumption"]
+        for field in test_fields:
+            if field in FIELD_CLASSIFICATION:
+                field_info = FIELD_CLASSIFICATION[field]
+                print(f"✅ Field '{field}': tier={field_info['tier']}, category={field_info['category']}")
+            else:
+                print(f"❌ Field '{field}' not found in FIELD_CLASSIFICATION")
+        
+        print("🎉 Consolidated integration test completed!")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Consolidated integration test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+# Uncomment this line to run the test automatically when utils.py is imported
+test_consolidated_integration()

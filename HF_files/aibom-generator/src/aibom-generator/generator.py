@@ -1,12 +1,29 @@
 import json
 import uuid
 import datetime
+import json
 from typing import Dict, Optional, Any, List
 
-
 from huggingface_hub import HfApi, ModelCard
+from huggingface_hub.repocard_data import EvalResult
 from urllib.parse import urlparse
 from .utils import calculate_completeness_score
+
+# Import registry-aware enhanced extraction if available
+try:
+    from .enhanced_extractor import EnhancedExtractor
+    from .field_registry_manager import get_field_registry_manager
+    ENHANCED_EXTRACTION_AVAILABLE = True
+    print("✅ Registry-aware enhanced extraction module loaded successfully")
+except ImportError:
+    try:
+        from enhanced_extractor import EnhancedExtractor
+        from field_registry_manager import get_field_registry_manager
+        ENHANCED_EXTRACTION_AVAILABLE = True
+        print("✅ Registry-aware enhanced extraction module loaded successfully (direct import)")
+    except ImportError:
+        ENHANCED_EXTRACTION_AVAILABLE = False
+        print("⚠️ Registry-aware enhanced extraction not available, using basic extraction")
 
 
 class AIBOMGenerator:
@@ -16,7 +33,7 @@ class AIBOMGenerator:
         inference_model_url: Optional[str] = None,
         use_inference: bool = True,
         cache_dir: Optional[str] = None,
-        use_best_practices: bool = True,  # Added parameter for industry-neutral scoring
+        use_best_practices: bool = True,  # parameter for industry-neutral scoring
     ):
         self.hf_api = HfApi(token=hf_token)
         self.inference_model_url = inference_model_url
@@ -24,13 +41,48 @@ class AIBOMGenerator:
         self.cache_dir = cache_dir
         self.enhancement_report = None  # Store enhancement report as instance variable
         self.use_best_practices = use_best_practices  # Store best practices flag
+        self._setup_enhanced_logging()
 
+        self.extraction_results = {}  # Store extraction results for scoring
+    
+        # Initialize registry manager for enhanced extraction
+        self.registry_manager = None
+        if ENHANCED_EXTRACTION_AVAILABLE:
+            try:
+                self.registry_manager = get_field_registry_manager()
+                print("✅ Registry manager initialized for generator")
+            except Exception as e:
+                print(f"⚠️ Could not initialize registry manager: {e}")
+                self.registry_manager = None
+
+    def get_extraction_results(self):
+        """Return the enhanced extraction results from the last extraction"""
+        return getattr(self, 'extraction_results', {})
+
+    def _setup_enhanced_logging(self):
+        """Setup enhanced logging for extraction tracking"""
+        import logging
+        
+        # Configure logging to show in HF Spaces
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            force=True  # Override any existing configuration
+        )
+        
+        # Ensure logger shows up
+        logger = logging.getLogger('enhanced_extractor')
+        logger.setLevel(logging.INFO)
+        
+        print("🔧 Enhanced logging configured for AI SBOM generation")
+    
+    
     def generate_aibom(
         self,
         model_id: str,
         output_file: Optional[str] = None,
         include_inference: Optional[bool] = None,
-        use_best_practices: Optional[bool] = None,  # Added parameter for industry-neutral scoring
+        use_best_practices: Optional[bool] = None,  # parameter for industry-neutral scoring
     ) -> Dict[str, Any]:
         try:
             model_id = self._normalise_model_id(model_id)
@@ -43,12 +95,59 @@ class AIBOMGenerator:
             
             # Store original metadata before any AI enhancement
             original_metadata = self._extract_structured_metadata(model_id, model_info, model_card)
+            print(f"🔍 ENHANCED EXTRACTION DEBUG: Returned {len(original_metadata)} fields:")
+            for key, value in original_metadata.items():
+                print(f"   {key}: {value}")
+            print(f"🔍 EXTRACTION RESULTS: {len(self.extraction_results) if hasattr(self, 'extraction_results') and self.extraction_results else 0} extraction results available")
             
             # Create initial AIBOM with original metadata
             original_aibom = self._create_aibom_structure(model_id, original_metadata)
+
+            print(f"🔍 AI SBOM CREATION DEBUG: Checking what made it into AIBOM:")
+            if 'components' in original_aibom and original_aibom['components']:
+                component = original_aibom['components'][0]
+                if 'properties' in component:
+                    print(f"   Found {len(component['properties'])} properties in AIBOM:")
+                    for prop in component['properties']:
+                        print(f"      {prop.get('name')}: {prop.get('value')}")
+                else:
+                    print("   No properties found in component")
+            else:
+                print("   No components found in AI SBOM")
+                print(f"🔍 FIELD PRESERVATION VERIFICATION:")
+                print(f"   Enhanced extraction returned: {len(original_metadata)} fields")
+                
+                # Count fields in final AIBOM
+                aibom_field_count = 0
+                
+                # Count component properties
+                if 'components' in original_aibom and original_aibom['components']:
+                    component = original_aibom['components'][0]
+                    if 'properties' in component:
+                        aibom_field_count += len(component['properties'])
+                    
+                    # Count model card properties
+                    if 'modelCard' in component and 'properties' in component['modelCard']:
+                        aibom_field_count += len(component['modelCard']['properties'])
+                
+                # Count metadata properties
+                if 'metadata' in original_aibom and 'properties' in original_aibom['metadata']:
+                    aibom_field_count += len(original_aibom['metadata']['properties'])
+                
+                print(f"   Final AIBOM contains: {aibom_field_count} fields")
+                print(f"   Field preservation rate: {(aibom_field_count/len(original_metadata)*100):.1f}%")
+                
+                if aibom_field_count >= len(original_metadata) * 0.9:  # 90% or better
+                    print("✅ EXCELLENT: Field preservation successful!")
+                elif aibom_field_count >= len(original_metadata) * 0.7:  # 70% or better  
+                    print("⚠️ GOOD: Most fields preserved, some optimization possible")
+                else:
+                    print("❌ POOR: Significant field loss detected")
+
             
             # Calculate initial score with industry-neutral approach if enabled
-            original_score = calculate_completeness_score(original_aibom, validate=True, use_best_practices=use_best_practices)
+            original_score = calculate_completeness_score(original_aibom, validate=True, use_best_practices=use_best_practices, extraction_results=self.extraction_results)
+
             
             # Final metadata starts with original metadata
             final_metadata = original_metadata.copy() if original_metadata else {}
@@ -74,12 +173,19 @@ class AIBOMGenerator:
                 except Exception as e:
                     print(f"Error during AI enhancement: {e}")
                     # Continue with original metadata if enhancement fails
-            
+                    print("🚨 FALLBACK: Using _create_minimal_aibom due to error!")
+                    print(f"🚨 ERROR DETAILS: {str(e)}")
             # Create final AIBOM with potentially enhanced metadata
             aibom = self._create_aibom_structure(model_id, final_metadata)
             
-            # Calculate final score with industry-neutral approach if enabled
-            final_score = calculate_completeness_score(aibom, validate=True, use_best_practices=use_best_practices)
+            # Calculate final score with enhanced extraction results
+            extraction_results = self.get_extraction_results()
+            final_score = calculate_completeness_score(
+                aibom, 
+                validate=True, 
+                use_best_practices=use_best_practices,
+                extraction_results=extraction_results  # Pass enhanced results
+            )
             
 
             if output_file:
@@ -98,8 +204,8 @@ class AIBOMGenerator:
             # Return only the AIBOM to maintain compatibility with existing code
             return aibom
         except Exception as e:
-            print(f"Error generating AIBOM: {e}")
-            # Return a minimal valid AIBOM structure in case of error
+            print(f"Error generating AI SBOM: {e}")
+            # Return a minimal valid AI SBOM structure in case of error
             return self._create_minimal_aibom(model_id)
 
     def _create_minimal_aibom(self, model_id: str) -> Dict[str, Any]:
@@ -156,7 +262,7 @@ class AIBOMGenerator:
             print(f"Error fetching model info for {model_id}: {e}")
             return {}
 
-    # ---- new helper ---------------------------------------------------------
+
     @staticmethod
     def _normalise_model_id(raw_id: str) -> str:
         """
@@ -171,7 +277,7 @@ class AIBOMGenerator:
                 return "/".join(parts[:2])
             return path
         return raw_id
-    # -------------------------------------------------------------------------
+
 
     def _fetch_model_card(self, model_id: str) -> Optional[ModelCard]:
         try:
@@ -185,6 +291,12 @@ class AIBOMGenerator:
         model_id: str,
         metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
+        # 🔍 CRASH DEBUG: troubleshoot where the process is crashing and falling back to minimal AIBOM
+        print(f"🔍 CRASH_DEBUG: _create_aibom_structure called")
+        print(f"🔍 CRASH_DEBUG: model_id = {model_id}")
+        print(f"🔍 CRASH_DEBUG: metadata type = {type(metadata)}")
+        print(f"🔍 CRASH_DEBUG: metadata keys = {list(metadata.keys()) if isinstance(metadata, dict) else 'NOT A DICT'}")
+        
         # Extract owner and model name from model_id
         parts = model_id.split("/")
         group = parts[0] if len(parts) > 1 else ""
@@ -192,6 +304,9 @@ class AIBOMGenerator:
         
         # Get version from metadata or use default
         version = metadata.get("commit", "1.0")
+
+        # 🔍 CRASH DEBUG: Check metadata before creating sections
+        print(f"🔍 CRASH_DEBUG: About to create metadata section")        
         
         aibom = {
             "bomFormat": "CycloneDX",
@@ -206,7 +321,10 @@ class AIBOMGenerator:
                     "dependsOn": [f"pkg:huggingface/{model_id.replace('/', '/')}@{version}"]
                 }
             ]
-        }        
+        }
+        
+        # 🔍 CRASH DEBUG: Check if we got this far
+        print(f"🔍 CRASH_DEBUG: Successfully created basic AIBOM structure")
         
         # ALWAYS add root-level external references
         aibom["externalReferences"] = [{
@@ -220,6 +338,7 @@ class AIBOMGenerator:
                 "url": metadata["commit_url"]
             } )
 
+        print(f"🔍 CRASH_DEBUG: _create_aibom_structure completed successfully")
         return aibom
 
     def _extract_structured_metadata(
@@ -228,6 +347,48 @@ class AIBOMGenerator:
         model_info: Dict[str, Any],
         model_card: Optional[ModelCard],
     ) -> Dict[str, Any]:
+        
+        # Use registry-aware enhanced extraction if available
+        if ENHANCED_EXTRACTION_AVAILABLE:
+            try:
+                print(f"🚀 Using registry-aware enhanced extraction for: {model_id}")
+            
+                # Create registry-aware enhanced extractor instance
+                extractor = EnhancedExtractor(self.hf_api, self.registry_manager)
+                
+                # Get both metadata and extraction results
+                metadata = extractor.extract_metadata(model_id, model_info, model_card)
+                
+                # Store extraction results for scoring
+                self.extraction_results = extractor.extraction_results
+                
+                # Log extraction summary
+                if extractor.registry_fields:
+                    registry_field_count = len(extractor.registry_fields)
+                    extracted_count = len([k for k, v in metadata.items() if v is not None])
+                    extraction_results_count = len(extractor.extraction_results)
+                    
+                    print(f"✅ Registry-driven extraction completed:")
+                    print(f"   📋 Registry fields available: {registry_field_count}")
+                    print(f"   📊 Fields attempted: {extraction_results_count}")
+                    print(f"   ✅ Fields extracted: {extracted_count}")
+                    
+                    # Log field coverage
+                    if registry_field_count > 0:
+                        coverage = (extracted_count / registry_field_count) * 100
+                        print(f"   📈 Registry field coverage: {coverage:.1f}%")
+                else:
+                    extracted_count = len([k for k, v in metadata.items() if v is not None])
+                    print(f"✅ Legacy extraction completed: {extracted_count} fields extracted")
+                
+                return metadata
+
+            except Exception as e:
+                print(f"❌ Registry-aware enhanced extraction failed: {e}")
+                print("🔄 Falling back to original extraction method")
+                # Fall back to original extraction code here
+        
+        # ORIGINAL EXTRACTION METHOD (as fallback)
         metadata = {}
     
         if model_info:
@@ -248,7 +409,7 @@ class AIBOMGenerator:
                     "downloads": getattr(model_info, "downloads", 0),
                     "last_modified": getattr(model_info, "lastModified", None),
                     "commit": getattr(model_info, "sha", None)[:7] if getattr(model_info, "sha", None) else None,
-                    "commit_url": f"https://huggingface.co/{model_id}/commit/{model_info.sha}" if getattr(model_info, "sha", None) else None,
+                    "commit_url": f"https://huggingface.co/{model_id}/commit/{model_info.sha}" if getattr(model_info, "sha", None ) else None,
                 })
             except Exception as e:
                 print(f"Error extracting model info metadata: {e}")
@@ -290,6 +451,7 @@ class AIBOMGenerator:
         print(f"DEBUG: Adding suppliedBy = {metadata.get('suppliedBy')}")
     
         return {k: v for k, v in metadata.items() if v is not None}
+
     
 
     def _extract_unstructured_metadata(self, model_card: Optional[ModelCard], model_id: str) -> Dict[str, Any]:
@@ -301,6 +463,9 @@ class AIBOMGenerator:
         
 
     def _create_metadata_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        print(f"🔍 CRASH_DEBUG: _create_metadata_section called")
+        print(f"🔍 CRASH_DEBUG: metadata type in metadata_section = {type(metadata)}")
+        
         timestamp = datetime.datetime.utcnow().isoformat() + "Z"
         
         # Get version from metadata or use default
@@ -358,24 +523,43 @@ class AIBOMGenerator:
 
         # ALWAYS add critical fields for scoring
         critical_fields = {
-            "primaryPurpose": metadata.get("primaryPurpose", metadata.get("ai:task", "text-generation")),
-            "suppliedBy": metadata.get("suppliedBy", metadata.get("author", "unknown")),
-            "typeOfModel": metadata.get("ai:type", "transformer")
+            "primaryPurpose": metadata.get("primaryPurpose", "text-generation"),
+            "suppliedBy": metadata.get("suppliedBy", "unknown"),
+            "typeOfModel": metadata.get("typeOfModel", "Transformer")
         }
-
-        # Add critical fields first
         for key, value in critical_fields.items():
-            if value and value != "unknown":
-                properties.append({"name": key, "value": str(value)})
+            properties.append({"name": key, "value": str(value)})
 
-        # Add other metadata fields (excluding basic component fields)
-        excluded_fields = ["name", "author", "license", "description", "commit", "primaryPurpose", "suppliedBy", "typeOfModel"]
+        # Add enhanced extraction fields to properties
+        # Organize fields by category for better AIBOM structure
+        component_fields = ["name", "author", "description", "commit"]  # These go in component section
+        critical_fields = ["primaryPurpose", "suppliedBy", "typeOfModel"]  # Always include these
+        
+        # Add all other enhanced extraction fields (preserve everything!)
+        enhanced_fields = ["model_type", "tokenizer_class", "architectures", "library_name", 
+                          "pipeline_tag", "tags", "datasets", "base_model", "language",
+                          "downloads", "last_modified", "commit_url", "ai:type", "ai:task", 
+                          "ai:framework", "eval_results"]
+        
+        print(f"🔍 CRASH_DEBUG: About to call .items() on metadata")
+        print(f"🔍 CRASH_DEBUG: metadata type before .items() = {type(metadata)}")
+        
         for key, value in metadata.items():
-            if key not in excluded_fields and value is not None:
+            # Skip component fields (handled elsewhere) but include everything else
+            if key not in component_fields and value is not None:
+                # Handle different data types properly
                 if isinstance(value, (list, dict)):
-                    if not isinstance(value, str):
+                    if isinstance(value, list) and len(value) > 0:
+                        # Convert list to comma-separated string for better display
+                        if all(isinstance(item, str) for item in value):
+                            value = ", ".join(value)
+                        else:
+                            value = json.dumps(value)
+                    elif isinstance(value, dict):
                         value = json.dumps(value)
+                
                 properties.append({"name": key, "value": str(value)})
+                print(f"✅ METADATA: Added {key} = {value} to properties")
 
         # Assemble metadata section
         metadata_section = {
@@ -388,6 +572,9 @@ class AIBOMGenerator:
         return metadata_section
 
     def _create_component_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        print(f"🔍 CRASH_DEBUG: _create_component_section called")
+        print(f"🔍 CRASH_DEBUG: metadata type in component_section = {type(metadata)}")
+        
         # Extract owner and model name from model_id
         parts = model_id.split("/")
         group = parts[0] if len(parts) > 1 else ""
@@ -412,7 +599,7 @@ class AIBOMGenerator:
             "purl": purl
         }
 
-        # ALWAYS add licenses (use default if not available)
+        # Handle license
         if metadata and "license" in metadata and metadata["license"]:
             component["licenses"] = [{
                 "license": {
@@ -420,14 +607,48 @@ class AIBOMGenerator:
                     "url": self._get_license_url(metadata["license"])
                 }
             }]
+            print(f"✅ COMPONENT: Added license = {metadata['license']}")
         else:
-            # Add default license structure for consistency
             component["licenses"] = [{
                 "license": {
-                    "id": "unknown",
+                    "id": "NOASSERTION",
                     "url": "https://spdx.org/licenses/"
                 }
             }]
+            print(f"⚠️ COMPONENT: No license found, using NOASSERTION")
+            
+        # ALWAYS add description
+        component["description"] = metadata.get("description", f"AI model {model_id}")
+        
+        # Add enhanced technical properties to component
+        technical_properties = []
+        
+        # Add model type information
+        if "model_type" in metadata:
+            technical_properties.append({"name": "model_type", "value": str(metadata["model_type"])})
+            print(f"✅ COMPONENT: Added model_type = {metadata['model_type']}")
+        
+        # Add tokenizer information  
+        if "tokenizer_class" in metadata:
+            technical_properties.append({"name": "tokenizer_class", "value": str(metadata["tokenizer_class"])})
+            print(f"✅ COMPONENT: Added tokenizer_class = {metadata['tokenizer_class']}")
+        
+        # Add architecture information
+        if "architectures" in metadata:
+            arch_value = metadata["architectures"]
+            if isinstance(arch_value, list):
+                arch_value = ", ".join(arch_value)
+            technical_properties.append({"name": "architectures", "value": str(arch_value)})
+            print(f"✅ COMPONENT: Added architectures = {arch_value}")
+        
+        # Add library information
+        if "library_name" in metadata:
+            technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])})
+            print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}")
+        
+        # Add technical properties to component if any exist
+        if technical_properties:
+            component["properties"] = technical_properties
         # Debug
         print(f"DEBUG: License in metadata: {'license' in metadata}" )
         if "license" in metadata:
@@ -435,6 +656,21 @@ class AIBOMGenerator:
             
         # ALWAYS add description
         component["description"] = metadata.get("description", f"AI model {model_id}")
+        if metadata.get("license"):
+            component["licenses"] = [{
+                "license": {
+                    "id": metadata["license"],
+                    "url": self._get_license_url(metadata["license"])
+                }
+            }]
+        else:
+            component["licenses"] = [{
+                "license": {
+                    "id": "unknown",
+                    "url": "https://spdx.org/licenses/"
+                }
+            }]
+
 
         # Add external references
         external_refs = [{
@@ -470,26 +706,70 @@ class AIBOMGenerator:
 
         return component
 
+    def _eval_results_to_json(self, eval_results: List[EvalResult]) -> List[Dict[str, str]]:
+        res = []
+        for eval_result in eval_results:
+            if hasattr(eval_result, "metric_type") and hasattr(eval_result, "metric_value"):
+                res.append({"type": eval_result.metric_type, "value": str(eval_result.metric_value)})
+        return res
+
+        
     def _create_model_card_section(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        print(f"🔍 CRASH_DEBUG: _create_model_card_section called")
+        print(f"🔍 CRASH_DEBUG: metadata type in model_card_section = {type(metadata)}")
+        
         model_card_section = {}
         
         # Add quantitative analysis section
         if "eval_results" in metadata:
             model_card_section["quantitativeAnalysis"] = {
-                "performanceMetrics": metadata["eval_results"],
+                "performanceMetrics": self._eval_results_to_json(metadata["eval_results"]),
                 "graphics": {}  # Empty graphics object as in the example
             }
         else:
             model_card_section["quantitativeAnalysis"] = {"graphics": {}}
         
-        # Add properties section
+        # Add properties section with enhanced extraction fields
         properties = []
-        for key, value in metadata.items():
-            if key in ["author", "library_name", "license", "downloads", "likes", "tags", "created_at", "last_modified"]:
-                properties.append({"name": key, "value": str(value)})
         
-        if properties:
-            model_card_section["properties"] = properties
+        # Component-level fields that shouldn't be duplicated in model card
+        component_level_fields = ["name", "author", "license", "description", "commit"]
+        
+        # DEBUG: troubleshooting AIBOM generation
+        print(f"🔍 DEBUG: About to iterate metadata.items()")
+        print(f"🔍 DEBUG: metadata type = {type(metadata)}")
+        if isinstance(metadata, dict):
+            print(f"🔍 DEBUG: metadata keys = {list(metadata.keys())}")
+        else:
+            print(f"🔍 DEBUG: metadata value = {metadata}")
+            print(f"🔍 DEBUG: This is the problem - metadata should be a dict!")
+                
+        # Add all enhanced extraction fields to model card properties
+        try:
+            for key, value in metadata.items():
+                if key not in component_level_fields and value is not None:
+                    # Handle different data types properly
+                    if isinstance(value, (list, dict)):
+                        if isinstance(value, list) and len(value) > 0:
+                            # Convert list to readable format
+                            if all(isinstance(item, str) for item in value):
+                                value = ", ".join(value)
+                            else:
+                                value = json.dumps(value)
+                        elif isinstance(value, dict):
+                            value = json.dumps(value)
+                    
+                    properties.append({"name": key, "value": str(value)})
+                    print(f"✅ MODEL_CARD: Added {key} = {value}")
+        except AttributeError as e:
+            print(f"❌ FOUND THE ERROR: {e}")
+            print(f"❌ metadata type: {type(metadata)}")
+            print(f"❌ metadata value: {metadata}")
+            raise e
+        
+        # Always include properties section (even if empty for consistency)
+        model_card_section["properties"] = properties
+        print(f"✅ MODEL_CARD: Added {len(properties)} properties to model card")
         
         # Create model parameters section
         model_parameters = {}
@@ -538,6 +818,25 @@ class AIBOMGenerator:
         
         # Add model parameters to model card section
         model_card_section["modelParameters"] = model_parameters
+        # Add enhanced technical parameters
+        if "model_type" in metadata or "tokenizer_class" in metadata or "architectures" in metadata:
+            technical_details = {}
+            
+            if "model_type" in metadata:
+                technical_details["modelType"] = metadata["model_type"]
+            
+            if "tokenizer_class" in metadata:
+                technical_details["tokenizerClass"] = metadata["tokenizer_class"]
+                
+            if "architectures" in metadata:
+                technical_details["architectures"] = metadata["architectures"]
+            
+            # Add to model parameters
+            model_parameters.update(technical_details)
+            print(f"✅ MODEL_CARD: Added technical details: {list(technical_details.keys())}")
+        
+        # Update model parameters with enhanced details
+        model_card_section["modelParameters"] = model_parameters
         
         # Add considerations section
         considerations = {}
@@ -579,3 +878,111 @@ class AIBOMGenerator:
                     return None
                 time.sleep(1 * (attempt + 1))  # Exponential backoff
         return None
+
+    def validate_registry_integration(self) -> Dict[str, Any]:
+        """
+        Validate that the registry integration is working correctly.
+        This method helps debug registry-related issues.
+        """
+        validation_results = {
+            'registry_manager_available': bool(self.registry_manager),
+            'enhanced_extraction_available': ENHANCED_EXTRACTION_AVAILABLE,
+            'registry_fields_count': 0,
+            'registry_fields_loaded': False,
+            'validation_status': 'unknown'
+        }
+        
+        try:
+            if self.registry_manager:
+                registry = self.registry_manager.registry
+                registry_fields = registry.get('fields', {})
+                validation_results['registry_fields_count'] = len(registry_fields)
+                validation_results['registry_fields_loaded'] = len(registry_fields) > 0
+                
+                if len(registry_fields) > 0:
+                    validation_results['validation_status'] = 'success'
+                    print(f"✅ Registry validation successful: {len(registry_fields)} fields loaded")
+                    
+                    # Log sample fields
+                    sample_fields = list(registry_fields.keys())[:5]
+                    print(f"📋 Sample registry fields: {', '.join(sample_fields)}")
+                else:
+                    validation_results['validation_status'] = 'no_fields'
+                    print("⚠️ Registry loaded but no fields found")
+            else:
+                validation_results['validation_status'] = 'no_registry_manager'
+                print("❌ Registry manager not available")
+                
+        except Exception as e:
+            validation_results['validation_status'] = 'error'
+            validation_results['error'] = str(e)
+            print(f"❌ Registry validation failed: {e}")
+        
+        return validation_results
+
+def test_registry_integration():
+    """
+    Test function to validate registry integration is working correctly.
+    This function can be called to debug registry-related issues.
+    """
+    print("🧪 Testing Registry Integration...")
+    print("=" * 50)
+    
+    try:
+        # Test generator initialization
+        generator = AIBOMGenerator()
+        
+        # Validate registry integration
+        validation_results = generator.validate_registry_integration()
+        
+        print("📊 Validation Results:")
+        for key, value in validation_results.items():
+            print(f"   {key}: {value}")
+        
+        # Test with a sample model
+        test_model = "deepseek-ai/DeepSeek-R1"
+        print(f"\n🔍 Testing extraction with model: {test_model}")
+        
+        try:
+            # Test model info retrieval
+            model_info = generator.hf_api.model_info(test_model)
+            model_card = ModelCard.load(test_model)
+            
+            # Test extraction
+            if ENHANCED_EXTRACTION_AVAILABLE and generator.registry_manager:
+                extractor = EnhancedExtractor(generator.hf_api, generator.registry_manager)
+                metadata = extractor.extract_metadata(test_model, model_info, model_card)
+                
+                print(f"✅ Test extraction successful: {len(metadata)} fields extracted")
+                
+                # Show sample extracted fields
+                sample_fields = dict(list(metadata.items())[:5])
+                print("📋 Sample extracted fields:")
+                for key, value in sample_fields.items():
+                    print(f"   {key}: {value}")
+                
+                # Show extraction results summary
+                extraction_results = extractor.get_extraction_results()
+                confidence_counts = {}
+                for result in extraction_results.values():
+                    conf = result.confidence.value
+                    confidence_counts[conf] = confidence_counts.get(conf, 0) + 1
+                
+                print("📈 Extraction confidence distribution:")
+                for conf, count in confidence_counts.items():
+                    print(f"   {conf}: {count} fields")
+                    
+            else:
+                print("⚠️ Registry-aware extraction not available for testing")
+                
+        except Exception as e:
+            print(f"❌ Test extraction failed: {e}")
+        
+    except Exception as e:
+        print(f"❌ Registry integration test failed: {e}")
+    
+    print("=" * 50)
+    print("🧪 Registry Integration Test Complete")
+
+# Uncomment this line to run the test automatically when generator.py is imported
+test_registry_integration()

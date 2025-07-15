@@ -19,10 +19,27 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from huggingface_hub import HfApi
 from huggingface_hub.utils import RepositoryNotFoundError # For specific error handling
 
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Registry-driven field classification imports
+try:
+    from src.aibom_generator.field_registry_manager import (
+        get_field_registry_manager,
+        generate_field_classification,
+        get_configurable_scoring_weights
+    )
+    REGISTRY_MANAGER = get_field_registry_manager()
+    FIELD_CLASSIFICATION = generate_field_classification()
+    SCORING_WEIGHTS = get_configurable_scoring_weights()
+    REGISTRY_AVAILABLE = True
+    logger.info(f"✅ Registry-driven API: {len(FIELD_CLASSIFICATION)} fields loaded")
+except ImportError as e:
+    REGISTRY_AVAILABLE = False
+    FIELD_CLASSIFICATION = {}
+    SCORING_WEIGHTS = {}
+    logger.warning(f"⚠️ Registry not available for API: {e}")
 
 # Define directories and constants
 templates_dir = "templates"
@@ -418,7 +435,7 @@ def import_utils():
 
         # Try from src
         try:
-            from src.aibom_generator.utils import calculate_completeness_score
+            from src.aibom_generator.utils import calculate_completeness_score            
             logger.info("Imported src.aibom_generator.utils.calculate_completeness_score")
             return calculate_completeness_score
         except ImportError:
@@ -442,25 +459,60 @@ def import_utils():
 # Try to import the calculate_completeness_score function
 calculate_completeness_score = import_utils()
 
-# Helper function to create a comprehensive completeness_score with field_checklist
-def create_comprehensive_completeness_score(aibom=None):
-    """
-    Create a comprehensive completeness_score object with all required attributes.
-    If aibom is provided and calculate_completeness_score is available, use it to calculate the score.
-    Otherwise, return a default score structure.
-    """
-    # If we have the calculate_completeness_score function and an AIBOM, use it
-    if calculate_completeness_score and aibom:
-        try:
-            return calculate_completeness_score(aibom, validate=True, use_best_practices=True)
-        except Exception as e:
-            logger.error(f"Error calculating completeness score: {str(e)}")
-            raise ValueError(f"Failed to calculate completeness score: {str(e)}")
-        else:
-            raise ValueError("AIBOM object not provided or scoring function not available.")
-    # Otherwise, return a default comprehensive structure
+# Verify registry integration status
+if REGISTRY_AVAILABLE:
+    logger.info("✅ API fully integrated with registry system")
+else:
+    logger.warning("⚠️ API using fallback mode - registry not available")
+    
+
+def get_tier_points(tier):
+    """Get points for a field tier."""
+    tier_points = {
+        "critical": 4.0,
+        "important": 2.0, 
+        "supplementary": 1.0
+    }
+    return tier_points.get(tier, 1.0)
+
+def create_registry_driven_fallback():
+    """Create fallback score using registry configuration."""
+    if not REGISTRY_AVAILABLE:
+        return create_hardcoded_fallback()
+        
+    categories = {}
+    field_checklist = {}
+    max_scores = {}
+    
+    # Get categories and scores from registry
+    for field_name, classification in FIELD_CLASSIFICATION.items():
+        category = classification["category"]
+        tier = classification["tier"]
+        
+        # Initialize category if not exists
+        if category not in categories:
+            categories[category] = {"total": 0, "present": 0}
+            max_scores[category] = 0
+            
+        categories[category]["total"] += 1
+        max_scores[category] += get_tier_points(tier)
+        
+        # Add to field checklist with registry-based tier
+        tier_stars = {"critical": "★★★", "important": "★★", "supplementary": "★"}
+        field_checklist[field_name] = f"n/a {tier_stars.get(tier, '★')}"
+    
     return {
-        "total_score": 0,  # Default score for better UI display
+        "total_score": 0,
+        "section_scores": {cat: 0 for cat in categories.keys()},
+        "max_scores": max_scores,
+        "field_checklist": field_checklist,
+        "category_details": categories
+    }
+
+def create_hardcoded_fallback():
+    """Fallback to original hardcoded structure when registry unavailable."""
+    return {
+        "total_score": 0,
         "section_scores": {
             "required_fields": 0,
             "metadata": 0,
@@ -476,140 +528,37 @@ def create_comprehensive_completeness_score(aibom=None):
             "external_references": 10
         },
         "field_checklist": {
-            # Required fields
             "bomFormat": "n/a ★★★",
             "specVersion": "n/a ★★★",
             "serialNumber": "n/a ★★★",
             "version": "n/a ★★★",
-            "metadata.timestamp": "n/a ★★",
-            "metadata.tools": "n/a ★★",
-            "metadata.authors": "n/a ★★",
-            "metadata.component": "n/a ★★",
-
-            # Component basic info
-            "component.type": "n/a ★★",
-            "component.name": "n/a ★★★",
-            "component.bom-ref": "n/a ★★",
-            "component.purl": "n/a ★★",
-            "component.description": "n/a ★★",
-            "component.licenses": "n/a ★★",
-
-            # Model card
-            "modelCard.modelParameters": "n/a ★★",
-            "modelCard.quantitativeAnalysis": "n/a ★★",
-            "modelCard.considerations": "n/a ★★",
-
-            # External references
-            "externalReferences": "n/a ★",
-
-            # Additional fields from FIELD_CLASSIFICATION
             "name": "n/a ★★★",
-            "downloadLocation": "n/a ★★★",
-            "primaryPurpose": "n/a ★★★",
-            "suppliedBy": "n/a ★★★",
-            "energyConsumption": "n/a ★★",
-            "hyperparameter": "n/a ★★",
-            "limitation": "n/a ★★",
-            "safetyRiskAssessment": "n/a ★★",
-            "typeOfModel": "n/a ★★",
-            "modelExplainability": "n/a ★",
-            "standardCompliance": "n/a ★",
-            "domain": "n/a ★",
-            "energyQuantity": "n/a ★",
-            "energyUnit": "n/a ★",
-            "informationAboutTraining": "n/a ★",
-            "informationAboutApplication": "n/a ★",
-            "metric": "n/a ★",
-            "metricDecisionThreshold": "n/a ★",
-            "modelDataPreprocessing": "n/a ★",
-            "autonomyType": "n/a ★",
-            "useSensitivePersonalInformation": "n/a ★"
-        },
-        "field_tiers": {
-            # Required fields
-            "bomFormat": "critical",
-            "specVersion": "critical",
-            "serialNumber": "critical",
-            "version": "critical",
-            "metadata.timestamp": "important",
-            "metadata.tools": "important",
-            "metadata.authors": "important",
-            "metadata.component": "important",
-
-            # Component basic info
-            "component.type": "important",
-            "component.name": "critical",
-            "component.bom-ref": "important",
-            "component.purl": "important",
-            "component.description": "important",
-            "component.licenses": "important",
-
-            # Model card
-            "modelCard.modelParameters": "important",
-            "modelCard.quantitativeAnalysis": "important",
-            "modelCard.considerations": "important",
-
-            # External references
-            "externalReferences": "supplementary",
-
-            # Additional fields from FIELD_CLASSIFICATION
-            "name": "critical",
-            "downloadLocation": "critical",
-            "primaryPurpose": "critical",
-            "suppliedBy": "critical",
-            "energyConsumption": "important",
-            "hyperparameter": "important",
-            "limitation": "important",
-            "safetyRiskAssessment": "important",
-            "typeOfModel": "important",
-            "modelExplainability": "supplementary",
-            "standardCompliance": "supplementary",
-            "domain": "supplementary",
-            "energyQuantity": "supplementary",
-            "energyUnit": "supplementary",
-            "informationAboutTraining": "supplementary",
-            "informationAboutApplication": "supplementary",
-            "metric": "supplementary",
-            "metricDecisionThreshold": "supplementary",
-            "modelDataPreprocessing": "supplementary",
-            "autonomyType": "supplementary",
-            "useSensitivePersonalInformation": "supplementary"
-        },
-        "missing_fields": {
-            "critical": [],
-            "important": ["modelCard.quantitativeAnalysis", "energyConsumption", "safetyRiskAssessment"],
-            "supplementary": ["modelExplainability", "standardCompliance", "energyQuantity", "energyUnit",
-                             "metric", "metricDecisionThreshold", "modelDataPreprocessing",
-                             "autonomyType", "useSensitivePersonalInformation"]
-        },
-        "completeness_profile": {
-            "name": "standard",
-            "description": "Comprehensive fields for proper documentation",
-            "satisfied": True
-        },
-        "penalty_applied": False,
-        "penalty_reason": None,
-        "recommendations": [
-            {
-                "priority": "medium",
-                "field": "modelCard.quantitativeAnalysis",
-                "message": "Missing important field: modelCard.quantitativeAnalysis",
-                "recommendation": "Add quantitative analysis information to the model card"
-            },
-            {
-                "priority": "medium",
-                "field": "energyConsumption",
-                "message": "Missing important field: energyConsumption - helpful for environmental impact assessment",
-                "recommendation": "Consider documenting energy consumption metrics for better transparency"
-            },
-            {
-                "priority": "medium",
-                "field": "safetyRiskAssessment",
-                "message": "Missing important field: safetyRiskAssessment",
-                "recommendation": "Add safety risk assessment information to improve documentation"
-            }
-        ]
+            "downloadLocation": "n/a ★★★"
+        }
     }
+
+# Helper function to create a comprehensive completeness_score with field_checklist
+def create_comprehensive_completeness_score(aibom=None):
+    """
+    Create a comprehensive completeness_score object with all required attributes.
+    Uses registry-driven field classification when available.
+    """
+    # If we have the calculate_completeness_score function and an AIBOM, use it
+    if calculate_completeness_score and aibom:
+        try:
+            return calculate_completeness_score(aibom, validate=True, use_best_practices=True)
+        except Exception as e:
+            logger.error(f"Error calculating completeness score: {str(e)}")
+            # Fall through to registry-driven fallback
+    
+    # Use registry-driven fallback
+    if REGISTRY_AVAILABLE:
+        logger.info("Using registry-driven completeness score fallback")
+        return create_registry_driven_fallback()
+    else:
+        logger.warning("Using hardcoded completeness score fallback")
+        return create_hardcoded_fallback()
+
 
 @app.post("/generate", response_class=HTMLResponse)
 async def generate_form(
@@ -834,8 +783,13 @@ async def generate_form(
             print(f"  completeness_score keys: {list(completeness_score.keys())}")
             if 'category_details' in completeness_score:
                 print(f"  category_details exists: {list(completeness_score['category_details'].keys())}")
-                # Check each category
-                for category in ['required_fields', 'metadata', 'component_basic', 'component_model_card', 'external_references']:
+                # Use registry-driven categories when available
+                if REGISTRY_AVAILABLE:
+                    categories = set(classification["category"] for classification in FIELD_CLASSIFICATION.values())
+                else:
+                    categories = ['required_fields', 'metadata', 'component_basic', 'component_model_card', 'external_references']
+                    
+                for category in categories:
                     if category in completeness_score['category_details']:
                         details = completeness_score['category_details'][category]
                         print(f"    {category}: present={details.get('present_fields')}, total={details.get('total_fields')}, percentage={details.get('percentage')}")
@@ -1022,7 +976,11 @@ async def api_generate_with_report(request: GenerateRequest):
             )
             
             # Calculate completeness score
-            completeness_score = calculate_completeness_score(aibom, validate=True, use_best_practices=request.use_best_practices)
+            try:
+                completeness_score = calculate_completeness_score(aibom, validate=True, use_best_practices=True)
+            except Exception as e:
+                logger.error(f"Failed completeness scoring for {normalized_model_id}: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Error calculating score: {str(e)}")
             
             # Round only section_scores that aren't already rounded
             for section, score in completeness_score["section_scores"].items():
@@ -1230,3 +1188,30 @@ if __name__ == "__main__":
     if not HF_TOKEN:
         print("Warning: HF_TOKEN environment variable not set. SBOM count will show N/A and logging will be skipped.")
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.get("/api/registry/status")
+async def get_registry_status():
+    """Get current registry configuration status for debugging."""
+    if REGISTRY_AVAILABLE:
+        categories = {}
+        for field_name, classification in FIELD_CLASSIFICATION.items():
+            category = classification["category"]
+            if category not in categories:
+                categories[category] = 0
+            categories[category] += 1
+            
+        return {
+            "registry_available": True,
+            "total_fields": len(FIELD_CLASSIFICATION),
+            "categories": list(categories.keys()),
+            "field_count_by_category": categories,
+            "registry_manager_loaded": REGISTRY_MANAGER is not None
+        }
+    else:
+        return {
+            "registry_available": False,
+            "fallback_mode": True,
+            "message": "Using hardcoded field definitions",
+            "total_fields": 6  # Hardcoded fallback count
+        }
