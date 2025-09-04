@@ -372,7 +372,9 @@ class EnhancedExtractor:
             'commit': lambda info: getattr(info, 'sha', '')[:7] if getattr(info, 'sha', None) else None,
             'suppliedBy': lambda info: getattr(info, 'author', None) or context['model_id'].split('/')[0],
             'primaryPurpose': lambda info: getattr(info, 'pipeline_tag', 'text-generation'),
-            'downloadLocation': lambda info: f"https://huggingface.co/{context['model_id']}/tree/main"
+            'downloadLocation': lambda info: f"https://huggingface.co/{context['model_id']}/tree/main",
+            'license': lambda info: getattr(info.card_data, 'license', None) if hasattr(info, 'card_data') and info.card_data else None,
+            'licenses': lambda info: getattr(info.card_data, 'license', None) if hasattr(info, 'card_data') and info.card_data else None
         }
         
         if field_name in api_mappings:
