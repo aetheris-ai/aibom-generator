@@ -600,14 +600,22 @@ class AIBOMGenerator:
         }
 
         # Handle license
-        if metadata and "license" in metadata and metadata["license"]:
+        license_value = None
+        if metadata and "licenses" in metadata and metadata["licenses"]:
+            license_value = metadata["licenses"]
+            print(f"✅ COMPONENT: Found licenses = {license_value}")
+        elif metadata and "license" in metadata and metadata["license"]:
+            license_value = metadata["license"]
+            print(f"✅ COMPONENT: Found license = {license_value}")
+        
+        if license_value:
             component["licenses"] = [{
                 "license": {
-                    "id": metadata["license"],
-                    "url": self._get_license_url(metadata["license"])
+                    "id": license_value,
+                    "url": self._get_license_url(license_value)
                 }
             }]
-            print(f"✅ COMPONENT: Added license = {metadata['license']}")
+            print(f"✅ COMPONENT: Added license = {license_value}")
         else:
             component["licenses"] = [{
                 "license": {
@@ -619,58 +627,36 @@ class AIBOMGenerator:
             
         # ALWAYS add description
         component["description"] = metadata.get("description", f"AI model {model_id}")
-        
-        # Add enhanced technical properties to component
-        technical_properties = []
-        
-        # Add model type information
-        if "model_type" in metadata:
-            technical_properties.append({"name": "model_type", "value": str(metadata["model_type"])})
-            print(f"✅ COMPONENT: Added model_type = {metadata['model_type']}")
-        
-        # Add tokenizer information  
-        if "tokenizer_class" in metadata:
-            technical_properties.append({"name": "tokenizer_class", "value": str(metadata["tokenizer_class"])})
-            print(f"✅ COMPONENT: Added tokenizer_class = {metadata['tokenizer_class']}")
-        
-        # Add architecture information
-        if "architectures" in metadata:
-            arch_value = metadata["architectures"]
-            if isinstance(arch_value, list):
-                arch_value = ", ".join(arch_value)
-            technical_properties.append({"name": "architectures", "value": str(arch_value)})
-            print(f"✅ COMPONENT: Added architectures = {arch_value}")
-        
-        # Add library information
-        if "library_name" in metadata:
-            technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])})
-            print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}")
-        
-        # Add technical properties to component if any exist
-        if technical_properties:
-            component["properties"] = technical_properties
-        # Debug
-        print(f"DEBUG: License in metadata: {'license' in metadata}" )
-        if "license" in metadata:
-            print(f"DEBUG: Adding licenses = {metadata['license']}")
-            
-        # ALWAYS add description
-        component["description"] = metadata.get("description", f"AI model {model_id}")
-        if metadata.get("license"):
-            component["licenses"] = [{
-                "license": {
-                    "id": metadata["license"],
-                    "url": self._get_license_url(metadata["license"])
-                }
-            }]
-        else:
-            component["licenses"] = [{
-                "license": {
-                    "id": "unknown",
-                    "url": "https://spdx.org/licenses/"
-                }
-            }]
 
+        # Add enhanced technical properties to component 
+        technical_properties = [] 
+ 
+        # Add model type information 
+        if "model_type" in metadata: 
+            technical_properties.append({"name": "model_type", "value": str(metadata["model_type"])}) 
+            print(f"✅ COMPONENT: Added model_type = {metadata['model_type']}") 
+ 
+        # Add tokenizer information 
+        if "tokenizer_class" in metadata: 
+            technical_properties.append({"name": "tokenizer_class", "value": str(metadata["tokenizer_class"])}) 
+            print(f"✅ COMPONENT: Added tokenizer_class = {metadata['tokenizer_class']}") 
+ 
+        # Add architecture information 
+        if "architectures" in metadata: 
+            arch_value = metadata["architectures"] 
+            if isinstance(arch_value, list): 
+                arch_value = ", ".join(arch_value) 
+            technical_properties.append({"name": "architectures", "value": str(arch_value)}) 
+            print(f"✅ COMPONENT: Added architectures = {arch_value}") 
+ 
+        # Add library information 
+        if "library_name" in metadata: 
+            technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])}) 
+            print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}") 
+ 
+        # Add technical properties to component if any exist 
+        if technical_properties: 
+            component["properties"] = technical_properties
 
         # Add external references
         external_refs = [{
