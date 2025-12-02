@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI SBOM Generated</title>
+    <title>AIBOM Generated</title>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -732,27 +732,27 @@
         <!-- Header -->
         <div class="header">
             <div class="header-left">
-                <a href="https://aetheris.ai/" target="_blank">
-                    <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
+                <a href="https://genai.owasp.org/" target="_blank">
+                  <img src="https://huggingface.co/spaces/GenAISecurityProject/OWASP-AIBOM-Generator/resolve/main/templates/images/OWASP_GenAI_Security_Project-logo.png" alt="OWASP GenAI Security Project logo">
                 </a>
                 <div class="header-content">
-                    <h1>AI SBOM Generator</h1>
+                    <h1>OWASP AIBOM Generator</h1>
                 </div>
             </div>
             <div class="header-right">
-                <!-- <a href="https://aetheris-ai-aibom-generator.hf.space/" class="generate-another-btn">🚀 Generate Another AI SBOM</a> -->
-                <a href="/" class="generate-another-btn">🚀 Generate Another AI SBOM</a>
+                <!-- <a href="https://owasp-aibom-generator.genaisecruityproject.hf.space/" class="generate-another-btn">🚀 Generate Another AIBOM</a> -->
+                <a href="/" class="generate-another-btn">🚀 Generate Another AIBOM</a>
             </div>
         </div>
 
         <!-- Success Message
         <div class="success-message">
-            <h2>✅ AI SBOM is Generated Successfully for <span class="model-name">{{ model_id }}</span></h2>
+            <h2>✅ AIBOM is Generated Successfully for <span class="model-name">{{ model_id }}</span></h2>
         </div>  -->
 
         <!-- Key Information -->
         <div class="key-info">
-            <h3>📋 AI SBOM Summary for model <span class="model-name">{{ model_id }}</span></h3>
+            <h3>📋 AIBOM Summary for model <span class="model-name">{{ model_id }}</span></h3>
             <div class="aibom-property">
                 <span class="property-name">Model:</span>
                 <span class="property-value">{{ model_id }}</span>
@@ -773,7 +773,7 @@
 
         <!-- Download Section -->
         <div class="download-section">
-            <p><strong>Download your AI SBOM:</strong></p>
+            <p><strong>Download your AIBOM:</strong></p>
             <button onclick="downloadJSON()">📥 Download JSON</button>
         </div>
 
@@ -920,7 +920,7 @@
             </div>
         </div>
         
-        <p>This breakdown outlines field categories and statuses in the AI SBOM generated for model <strong>{{ model_id }}</strong>, showing how each field impacts the completeness score.</p>
+        <p>This breakdown outlines field categories and statuses in the AIBOM generated for model <strong>{{ model_id }}</strong>, showing how each field impacts the completeness score.</p>
         
         {% if completeness_score.field_checklist %}
             <!-- Required Fields Category -->
@@ -1225,7 +1225,7 @@
 
                     <!-- Specific Breakdown for This SBOM -->
                     <div class="note-box">
-                        <h4>Your AI SBOM Breakdown</h4>
+                        <h4>Your AIBOM Breakdown</h4>
                         <p><strong>Model:</strong> {{ model_id }}</p>
                         
                         <table class="score-table">
@@ -1315,7 +1315,7 @@
                     <!-- Recommendations -->
                     {% if completeness_score.recommendations %}
                     <div class="recommendations">
-                      <h4>General Recommendations to Improve AI SBOM Completeness</h4>
+                      <h4>General Recommendations to Improve AIBOM Completeness</h4>
                       <ul>
                           <li><strong>Required Fields:</strong> Ensure the model is published with a clear name, version, and hosting platform information to allow proper SBOM structuring.</li>
                           <li><strong>Metadata:</strong> Include author or organization name, purpose of the model, and relevant timestamps in the model repository or card.</li>
@@ -1327,8 +1327,8 @@
 
                                       <!-- Generic Scoring Explanation -->
                     <div class="scoring-rubric">
-                        <h4>How AI SBOM Completeness is Scored</h4>
-                        <p>The completeness score evaluates how well your AI SBOM documents the model across five key categories:</p>
+                        <h4>How AIBOM Completeness is Scored</h4>
+                        <p>The completeness score evaluates how well your AIBOM documents the model across five key categories:</p>
                         <ul>
                             <li><strong>Required Fields (20 points):</strong> Basic SBOM structure mandated by CycloneDX</li>
                             <li><strong>Metadata (20 points):</strong> Information about the SBOM generation and model purpose</li>
@@ -1366,7 +1366,7 @@
             <div id="json-view" class="tab-content">
                 <div class="content-section">
                     <h3>📄 Raw JSON View</h3>
-                    <p>This is the complete AI SBOM in CycloneDX JSON format:</p>
+                    <p>This is the complete AIBOM in CycloneDX JSON format:</p>
                     <div class="json-view">
                         <pre>{{ aibom|tojson(indent=2) }}</pre>
                     </div>
@@ -1386,25 +1386,25 @@
         <!-- Help us spread the word section -->
         <div class="content-section" style="text-align: center;">
             <h3>🗣️ Help Us Spread the Word</h3>
-            <p>If you find this tool useful, share it with your network! <a href="https://sbom.aetheris.ai" target="_blank" rel="noopener noreferrer">https://sbom.aetheris.ai</a></p>
-            <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fsbom.aetheris.ai" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+            <p>If you find this tool useful, share it with your network! <a href="https://genai.owasp.org" target="_blank" rel="noopener noreferrer">https://genai.owasp.org</a></p>
+            <a href="https://www.linkedin.com/sharing/share-offsite/?url=https://huggingface.co/spaces/GenAISecurityProject/OWASP-AIBOM-Generator" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
                 <button style="background-color: #0077b5;">🔗 Share on LinkedIn</button>
             </a>
             <p style="margin-top: 10px; font-size: 14px;">
                 Follow us for updates: 
-                <a href="https://www.linkedin.com/company/aetheris-ai" target="_blank" rel="noopener noreferrer">@Aetheris AI</a>
+                <a href="https://www.linkedin.com/company/owasp-top-10-for-large-language-model-applications/" target="_blank" rel="noopener noreferrer">@OWASP GenAI Security Project</a>
             </p>
         </div>
 
         <!-- Info Section -->
         <div class="content-section" style="text-align: center;">
             <!-- Display the SBOM count -->
-            <div class="sbom-count">🚀 Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
+            <div class="sbom-count">🚀 Generated AIBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
         </div>
 
         <!-- Footer -->
         <div class="footer">
-            <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
+            <p>© 2025 OWASP GenAI Security Project | OWASP AIBOM Generator</p>
         </div>
     </div>
 
@@ -1460,4 +1460,3 @@
     </script>
 </body>
 </html>
-
