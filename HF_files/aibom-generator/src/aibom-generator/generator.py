@@ -219,12 +219,12 @@ class AIBOMGenerator:
                 "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
                 "tools": {
                     "components": [{
-                        "bom-ref": "pkg:generic/aetheris-ai/aetheris-aibom-generator@1.0.0",
+                        "bom-ref": "pkg:generic/owasp-genai/owasp-aibom-generator@1.0.0",
                         "type": "application",
-                        "name": "aetheris-aibom-generator",
+                        "name": "OWASP AIBOM Generator",
                         "version": "1.0.0",
                         "manufacturer": {
-                            "name": "Aetheris AI"
+                            "name": "OWASP GenAI Security Project"
                         }
                     }]
                 },
@@ -474,12 +474,12 @@ class AIBOMGenerator:
         # Create tools section with components array
         tools = {
             "components": [{
-                "bom-ref": "pkg:generic/aetheris-ai/aetheris-aibom-generator@1.0.0",
+                "bom-ref": "pkg:generic/owasp-genai/owasp-aibom-generator@1.0.0",
                 "type": "application",
-                "name": "aetheris-aibom-generator",
-                "version": "1.0",
+                "name": "OWASP AIBOM Generator",
+                "version": "1.0.0",
                 "manufacturer": {
-                    "name": "Aetheris AI"
+                    "name": "OWASP GenAI Security Project"
                 }
             }]
         }
