@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI SBOM Generator</title>
+    <title>OWASP AIBOM Generator</title>
     <style>
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -253,10 +253,10 @@
     <div class="container">
       <div class="header">
         <div class="header-left">
-              <a href="https://aetheris.ai/" target="_blank">
-                  <img src="https://huggingface.co/spaces/aetheris-ai/aibom-generator/resolve/main/templates/images/AetherisAI-logo.png" alt="Aetheris AI Logo">
+              <a href="https://genai.owasp.org/" target="_blank">
+                  <img src="https://huggingface.co/spaces/GenAISecurityProject/OWASP-AIBOM-Generator/resolve/main/templates/images/OWASP_GenAI_Security_Project-logo.png" alt="OWASP GenAI Security Project logo">
               </a>
-                  <h1>AI SBOM Generator</h1>
+                  <h1>OWASP AIBOM Generator</h1>
          </div>
       </div>
     </div>
@@ -264,9 +264,9 @@
     <div class="container">
         <!-- Form Section (Moved to top) -->
         <div class="form-section">
-            <h2>Generate AI SBOM</h2>
+            <h2>Generate AIBOM</h2>
             <p>
-                Enter a model on Hugging Face, in a format <code>&lt;organization-or-username&gt;/&lt;model-name&gt;</code> (easy copy button), or model's URL, to generate AI SBOM in CycloneDX format. You can browse available models in the <a href="https://huggingface.co/models" target="_blank" rel="noopener noreferrer">Hugging Face models repository</a>.
+                Enter a model on Hugging Face, in a format <code>&lt;organization-or-username&gt;/&lt;model-name&gt;</code> (easy copy button), or model's URL, to generate AIBOM in CycloneDX format. You can browse available models in the <a href="https://huggingface.co/models" target="_blank" rel="noopener noreferrer">Hugging Face models repository</a>.
             </p>
             <form id="sbom-form" action="/generate" method="post" style="display: flex; flex-direction: row; align-items: center; width: 100%;">
                 <input type="text" name="model_id" placeholder="e.g., openai/whisper-tiny" required style="flex: 1; max-width: 70%; margin-right: 10px;">
@@ -277,7 +277,7 @@
                     data-callback="onSubmit"
                     data-action="submit"
                     id="generate-button" 
-                    type="button">Generate AI SBOM</button>
+                    type="button">Generate AIBOM</button>
             </form>
             <div style="font-size: 12px; color: #777; margin-top: 10px;">
                 This site is protected by reCAPTCHA and the Google
@@ -289,13 +289,13 @@
         <!-- Tool Description Section -->
         <div class="content-section">
             <h2>About This Tool</h2>
-            <p>This open-source tool helps you generate AI SBOMs for models hosted on Hugging Face. It automatically extracts and formats key information—such as model metadata, training datasets, dependencies, and configurations—into a standardized, machine-readable SBOM using the CycloneDX JSON format. While not all models have consistent metadata quality and much of the information is unstructured, this tool helps navigate those gaps by extracting available data and organizing it into a clear, standardized structure to support transparency, security, and compliance. <a href="https://aisuf.org/blogs/f/ai-sbom-generator" target="_blank" rel="noopener noreferrer">Read more</a>. The tool is also listed on <a href="hhttps://cyclonedx.org/tool-center/" target="_blank" rel="noopener noreferrer">CycloneDX Tool Center</a>.</p>
+            <p>This open-source tool generates AIBOM (AI Bill of Materials) for models hosted on Hugging Face. It automatically extracts and formats key information about AI models into a standardized, machine-readable SBOM (Software Bill of Materials) using the CycloneDX JSON format. Because metadata quality varies across models and much of the information is unstructured, the tool analyzes what is available, organizes it into a consistent structure, and provides an AIBOM completeness score that evaluates how well the model is documented. This helps users quickly understand documentation gaps and supports transparency, security, and compliance. The tool is also listed on <a href="hhttps://cyclonedx.org/tool-center/" target="_blank" rel="noopener noreferrer">CycloneDX Tool Center</a>.</p>
         </div>
         
         <!-- Introduction Section -->
         <div class="content-section">
-            <h2>Understanding AI SBOMs</h2>
-            <p>An AI SBOM (Artificial Intelligence Software Bill of Materials, also known as AIBOM / ML-BOM or SBOM for AI) is a detailed, structured inventory that lists the components and dependencies involved in building and operating an AI system—such as pre-trained models, datasets, libraries, and configuration parameters. Much like a traditional SBOM for software, an AI SBOM brings transparency to what goes into an AI system, enabling organizations to assess security, compliance, and ethical risks. It is essential for managing AI supply chain risks, supporting regulatory requirements, ensuring model provenance, and enabling incident response and audits. As AI systems grow more complex and widely adopted, AI SBOMs become critical for maintaining trust, accountability, and control over how AI technologies are developed, integrated, and deployed.</p>
+            <h2>Understanding AIBOMs</h2>
+            <p>An AIBOM (Artificial Intelligence Bill of Materials, also known as AI/ML-BOM, AI SBOM, or SBOM for AI) is a detailed, structured inventory that lists the components and dependencies involved in building and operating an AI system—such as pre-trained models, datasets, libraries, and configuration parameters. Much like a traditional SBOM for software, an AIBOM brings transparency to what goes into an AI system, enabling organizations to assess security, compliance, and ethical risks. It is essential for managing AI supply chain risks, supporting regulatory requirements, ensuring model provenance, and enabling incident response and audits. As AI systems grow more complex and widely adopted, AIBOMs become critical for maintaining trust, accountability, and control over how AI technologies are developed, integrated, and deployed.</p>
         </div>
       
         <!-- Support Section -->
@@ -310,25 +310,25 @@
         <!-- Social Section -->
         <div class="content-section" style="text-align: center;">
             <h3>🗣️ Help Us Spread the Word</h3>
-            <p>If you find this tool useful, share it with your network! <a href="https://sbom.aetheris.ai" target="_blank" rel="noopener noreferrer">https://sbom.aetheris.ai</a></p>
-            <a href="https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fsbom.aetheris.ai" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
+            <p>If you find this tool useful, share it with your network! <a href="https://genai.owasp.org" target="_blank" rel="noopener noreferrer">https://genai.owasp.org</a></p>
+            <a href="https://www.linkedin.com/sharing/share-offsite/?url=https://huggingface.co/spaces/GenAISecurityProject/OWASP-AIBOM-Generator" target="_blank" rel="noopener noreferrer" style="text-decoration: none;">
                 <button style="background-color: #0077b5;">🔗 Share on LinkedIn</button>
             </a>
             <p style="margin-top: 10px; font-size: 14px;">
                 Follow us for updates: 
-                <a href="https://www.linkedin.com/company/aetheris-ai" target="_blank" rel="noopener noreferrer">@Aetheris AI</a>
+                <a href="https://www.linkedin.com/company/owasp-top-10-for-large-language-model-applications/" target="_blank" rel="noopener noreferrer">@OWASP GenAI Security Project</a>
             </p>
         </div>
 
         <!-- Info Section -->
         <div class="content-section" style="text-align: center;">
             <!-- Display the SBOM count -->
-            <div class="sbom-count">🚀 Generated AI SBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
+            <div class="sbom-count">🚀 Generated AIBOMs using this tool: <strong>{{ sbom_count if sbom_count else 'N/A' }}</strong></div>        
         </div>
       
         <!-- Footer -->
         <div class="footer">
-            <p>© 2025 AI SBOM Generator | Powered by Aetheris AI</p>
+            <p>© 2025 OWASP GenAI Security Project | OWASP AIBOM Generator</p>
         </div>
     </div>
 
@@ -363,4 +363,3 @@
     </script>
 </body>
 </html>
-

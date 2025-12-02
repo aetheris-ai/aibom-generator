@@ -1,20 +1,19 @@
-# 🤖 AI SBOM Generator
+# 🤖 OWASP AIBOM Generator
 
-This is the official Hugging Face Space repository for the **AI SBOM Generator** — an open-source tool for generating AI Software Bills of Materials (AI SBOMs) in [CycloneDX](https://cyclonedx.org) format.
-Official GitHub reporitory is here: [github.com/aetheris-ai/aibom-generator](https://github.com/aetheris-ai/aibom-generator/)
+This is the official Hugging Face Space repository for the **OWASP AIBOM Generator** — an open-source tool for generating AI Bills of Materials (AIBOMs) in [CycloneDX](https://cyclonedx.org) format.
 
 This tool is also published on [CycloneDX Tool Center](https://cyclonedx.org/tool-center/).
 
 
 🚀 **Try the tool live:**  
-👉 [sbom.aetheris.ai](https://sbom.aetheris.ai/)
+👉 [OWASP AIBOM Generator](https://huggingface.co/spaces/GenAISecurityProject/OWASP-AIBOM-Generator)
 
 ---
 
 ## 📦 What It Does
 
 - Extracts metadata from models hosted on Hugging Face 🤗
-- Generates an AI SBOM in JSON format based on CycloneDX 1.6
+- Generates an AIBOM in JSON format based on CycloneDX 1.6
 - Assesses metadata completeness and provides a score
 
 ---
@@ -22,8 +21,8 @@ This tool is also published on [CycloneDX Tool Center](https://cyclonedx.org/too
 ## 🛠 Features
 
 - Human-readable SBOM view
-- Download of generated AI SBOM in CycloneDX JSON format
-- AI SBOM completeness scoring
+- Download of generated AIBOM in CycloneDX JSON format
+- AIBOM completeness scoring
 - APIs
 
 ---
@@ -38,4 +37,4 @@ Please help us improve!
 
 ## 📄 License
 
-This project is open-source and available under the [MIT License](LICENSE).
+This project is open-source and available under the [Apache 2.0 License](LICENSE).
