@@ -2,7 +2,7 @@
 
 > **Note:** This tool has been officially **donated to the [OWASP GenAI Security Project](https://genai.owasp.org)**.  
 > The repository will be migrated to the OWASP GenAI GitHub organization soon.  
-> Until the migration is completed, **this GitHub repo remains active** and is still used as part of the tool’s running infrastructure (including the Hugging Face Space deployment).
+> Until the migration is completed, **this GitHub repo remains active** and is still used as part of the tool’s running infrastructure (including the Hugging Face Space deployment).  
 > Join OWASP GenAI Security Project workstream to contribute - details are here: [genai.owasp.org/aibom-generator](https://genai.owasp.org/aibom-generator).
 
 This is the official GitHub repository for the **OWASP AIBOM Generator** — an open-source tool for generating **AI Bills of Materials (AIBOMs)** in [CycloneDX](https://cyclonedx.org) format.  
