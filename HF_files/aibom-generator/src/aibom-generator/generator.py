@@ -484,6 +484,7 @@ class AIBOMGenerator:
             }]
         }
 
+
         # Create authors array
         authors = []
         if "author" in metadata and metadata["author"]:
@@ -545,8 +546,8 @@ class AIBOMGenerator:
         print(f"🔍 CRASH_DEBUG: metadata type before .items() = {type(metadata)}")
         
         for key, value in metadata.items():
-            # Skip component fields (handled elsewhere) but include everything else
-            if key not in component_fields and value is not None:
+            # Skip component fields and eval_results (handled separately in the model card)
+            if key not in (component_fields + ["eval_results"]) and value is not None:
                 # Handle different data types properly
                 if isinstance(value, (list, dict)):
                     if isinstance(value, list) and len(value) > 0:
@@ -607,7 +608,7 @@ class AIBOMGenerator:
         elif metadata and "license" in metadata and metadata["license"]:
             license_value = metadata["license"]
             print(f"✅ COMPONENT: Found license = {license_value}")
-        
+
         if license_value:
             component["licenses"] = [{
                 "license": {
@@ -627,20 +628,20 @@ class AIBOMGenerator:
             
         # ALWAYS add description
         component["description"] = metadata.get("description", f"AI model {model_id}")
-
+        
         # Add enhanced technical properties to component 
         technical_properties = [] 
- 
+
         # Add model type information 
         if "model_type" in metadata: 
             technical_properties.append({"name": "model_type", "value": str(metadata["model_type"])}) 
             print(f"✅ COMPONENT: Added model_type = {metadata['model_type']}") 
- 
+
         # Add tokenizer information 
         if "tokenizer_class" in metadata: 
             technical_properties.append({"name": "tokenizer_class", "value": str(metadata["tokenizer_class"])}) 
             print(f"✅ COMPONENT: Added tokenizer_class = {metadata['tokenizer_class']}") 
- 
+
         # Add architecture information 
         if "architectures" in metadata: 
             arch_value = metadata["architectures"] 
@@ -648,12 +649,12 @@ class AIBOMGenerator:
                 arch_value = ", ".join(arch_value) 
             technical_properties.append({"name": "architectures", "value": str(arch_value)}) 
             print(f"✅ COMPONENT: Added architectures = {arch_value}") 
- 
+
         # Add library information 
         if "library_name" in metadata: 
             technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])}) 
             print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}") 
- 
+
         # Add technical properties to component if any exist 
         if technical_properties: 
             component["properties"] = technical_properties
