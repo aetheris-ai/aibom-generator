@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Registry-Integrated (field_registry.json) Enhanced Multi-Layer Data Extraction for AI SBOM Generator
+Registry-Integrated (field_registry.json) Enhanced Multi-Layer Data Extraction for AIBOM Generator
 
 This module provides a fully configurable enhanced data extraction system that
 automatically picks up new fields from the JSON registry (field_registry.json) without requiring code changes.
@@ -176,6 +176,51 @@ class EnhancedExtractor:
         # Compile all patterns
         for category, pattern_list in self.patterns.items():
             self.patterns[category] = [re.compile(pattern, re.IGNORECASE) for pattern in pattern_list]
+
+
+    # SPDX mappings for common licences
+    LICENSE_MAPPINGS = {
+        "mit": "MIT",
+        "mit license": "MIT",
+        "apache license version 2.0": "Apache-2.0",
+        "apache license 2.0": "Apache-2.0",
+        "apache 2.0": "Apache-2.0",
+        "apache license, version 2.0": "Apache-2.0",
+        "bsd 3-clause": "BSD-3-Clause",
+        "bsd-3-clause": "BSD-3-Clause",
+        "bsd 2-clause": "BSD-2-Clause",
+        "bsd-2-clause": "BSD-2-Clause",
+        "gnu general public license v3": "GPL-3.0-only",
+        "gplv3": "GPL-3.0-only",
+        "gnu general public license v2": "GPL-2.0-only",
+        "gplv2": "GPL-2.0-only",
+    }
+
+    def _detect_license_from_file(self, model_id: str) -> Optional[str]:
+        """
+        Attempt to detect a licence by looking at repository files.
+        Downloads common licence filenames (e.g. LICENSE, LICENSE.md),
+        reads a small snippet, and returns the matching SPDX identifier,
+        or None if none match.
+        """
+        license_filenames = ["LICENSE", "LICENSE.txt", "LICENSE.md", "LICENSE.rst", "COPYING"]
+        for filename in license_filenames:
+            try:
+                file_path = hf_hub_download(repo_id=model_id, filename=filename)
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    snippet = f.read(4096).lower()
+                for header, spdx_id in self.LICENSE_MAPPINGS.items():
+                    if header in snippet:
+                        return spdx_id
+            except (RepositoryNotFoundError, EntryNotFoundError):
+                # file doesn’t exist; continue
+                continue
+            except Exception as e:
+                logger.debug(f"Licence detection error reading {filename}: {e}")
+                continue
+        return None
+
+        
     
     def extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard]) -> Dict[str, Any]:
         """
@@ -333,6 +378,19 @@ class EnhancedExtractor:
             )
             extraction_methods.append("intelligent_inference")
             return inferred_value
+
+        # detect licence from repository files if the field is licence/ licences
+        if field_name in {"license", "licenses"}:
+            detected = self._detect_license_from_file(context["model_id"])
+            if detected:
+                self.extraction_results[field_name] = ExtractionResult(
+                    value=detected,
+                    source=DataSource.REPOSITORY_FILES,
+                    confidence=ConfidenceLevel.MEDIUM,
+                    extraction_method="license_file",
+                    fallback_chain=extraction_methods,
+                )
+                return detected
         
         # Strategy 6: Fallback value (if configured)
         fallback_value = self._try_fallback_value(field_name, field_config)
@@ -655,6 +713,12 @@ class EnhancedExtractor:
             tokenizer_config = self._download_and_parse_config(model_id, "tokenizer_config.json")
             if tokenizer_config:
                 metadata['tokenizer_class'] = tokenizer_config.get("tokenizer_class")
+
+            # try to detect licence from repository files if licence is missing
+            if "license" not in metadata or not metadata["license"]:
+                detected_license = self._detect_license_from_file(model_id)
+                if detected_license:
+                    metadata["license"] = detected_license
             
         except Exception as e:
             logger.warning(f"⚠️ Legacy Layer 2: Could not analyze repository files: {e}")
@@ -671,6 +735,15 @@ class EnhancedExtractor:
             if readme_content:
                 extracted_info = self._extract_from_text(readme_content)
                 metadata.update(extracted_info)
+
+                # promote licence found in README into main metadata if no licence exists yet
+                license_from_text = extracted_info.get("license_from_text")
+                if license_from_text and not metadata.get("license"):
+                    if isinstance(license_from_text, list):
+                        metadata["license"] = license_from_text[0]
+                    else:
+                        metadata["license"] = license_from_text
+                    
         except Exception as e:
             logger.warning(f"⚠️ Legacy Layer 3: Error in Smart Text Parsing: {e}")
         
