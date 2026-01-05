@@ -1,16 +1,16 @@
 # 🤖 OWASP AIBOM Generator
 
-> **Note:** This tool has been officially **donated to the [OWASP GenAI Security Project](https://genai.owasp.org)**.  
-> The repository will be migrated to the OWASP GenAI GitHub organization soon.  
-> Until the migration is completed, **this GitHub repo remains active** and is still used as part of the tool’s running infrastructure (including the Hugging Face Space deployment).  
-> Join OWASP GenAI Security Project workstream to contribute - details are here: [genai.owasp.org/aibom-generator](https://genai.owasp.org/aibom-generator).
-
 This is the official GitHub repository for the **OWASP AIBOM Generator** — an open-source tool for generating **AI Bills of Materials (AIBOMs)** in [CycloneDX](https://cyclonedx.org) format.  
 The tool is also listed in the official **[CycloneDX Tool Center](https://cyclonedx.org/tool-center/)**.
 
 🚀 **Try the tool live:**  
 👉 https://owasp-genai-aibom.org  
-🔖 Bookmark and share: https://owasp-genai-aibom.org
+🔖 Bookmark and share: https://owasp-genai-aibom.org 
+
+🌐 OWASP AIBOM Initiative: [genai.owasp.org/ai-sbom-initiative](https://genai.owasp.org/ai-sbom-initiative)
+
+> This initiative is about making AI transparency practical. The OWASP AIBOM Generator, running under the OWASP GenAI Security Project, is focused on helping organizations understand what’s actually inside AI models and systems, starting with open models on Hugging Face.
+> Join OWASP GenAI Security Project - AIBOM Initiative to contribute.
 
 ---
 
