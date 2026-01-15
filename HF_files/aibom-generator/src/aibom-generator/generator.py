@@ -8,6 +8,7 @@ from huggingface_hub import HfApi, ModelCard
 from huggingface_hub.repocard_data import EvalResult
 from urllib.parse import urlparse
 from .utils import calculate_completeness_score
+from .validation import validate_aibom as validate_schema, get_validation_summary as get_schema_validation_summary
 
 # Import registry-aware enhanced extraction if available
 try:
@@ -177,12 +178,21 @@ class AIBOMGenerator:
                     print(f"🚨 ERROR DETAILS: {str(e)}")
             # Create final AIBOM with potentially enhanced metadata
             aibom = self._create_aibom_structure(model_id, final_metadata)
-            
+
+            # Validate AIBOM against CycloneDX 1.6 schema
+            schema_valid, validation_errors = validate_schema(aibom, strict=False)
+            if not schema_valid:
+                print(f"⚠️ AIBOM validation found {len(validation_errors)} issue(s):")
+                for error in validation_errors[:5]:  # Show first 5 errors
+                    print(f"   - {error}")
+            else:
+                print("✅ AIBOM passes CycloneDX 1.6 schema validation")
+
             # Calculate final score with enhanced extraction results
             extraction_results = self.get_extraction_results()
             final_score = calculate_completeness_score(
-                aibom, 
-                validate=True, 
+                aibom,
+                validate=True,
                 use_best_practices=use_best_practices,
                 extraction_results=extraction_results  # Pass enhanced results
             )
@@ -198,7 +208,12 @@ class AIBOMGenerator:
                 "ai_model": ai_model_name if ai_enhanced else None,
                 "original_score": original_score,
                 "final_score": final_score,
-                "improvement": round(final_score["total_score"] - original_score["total_score"], 2) if ai_enhanced else 0
+                "improvement": round(final_score["total_score"] - original_score["total_score"], 2) if ai_enhanced else 0,
+                "schema_validation": {
+                    "valid": schema_valid,
+                    "error_count": len(validation_errors) if not schema_valid else 0,
+                    "errors": validation_errors[:10] if not schema_valid else []
+                }
             }
 
             # Return only the AIBOM to maintain compatibility with existing code
