@@ -594,29 +594,30 @@ async def generate_form(
             "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
 
-    # --- Input Sanitization (AFTER validation) ---
-    sanitized_model_id = html.escape(model_id)
-        
-    # --- Normalize the SANITIZED and VALIDATED model ID --- 
-    normalized_model_id = _normalise_model_id(sanitized_model_id)
-    
-    # --- Check if the ID corresponds to an actual HF Model --- 
+    # --- Normalize the VALIDATED model ID (use raw input, not HTML-escaped) ---
+    # Normalization needs to parse URLs which contain special chars like / and :
+    normalized_model_id = _normalise_model_id(model_id)
+
+    # --- Check if the ID corresponds to an actual HF Model ---
     try:
         hf_api = HfApi()
         logger.info(f"Attempting to fetch model info for: {normalized_model_id}")
         model_info = hf_api.model_info(normalized_model_id)
         logger.info(f"Successfully fetched model info for: {normalized_model_id}")
     except RepositoryNotFoundError:
-        error_message = f"Error: The provided ID \"{normalized_model_id}\" could not be found on Hugging Face or does not correspond to a model repository."
+        # Sanitize for safe HTML display in template
+        sanitized_for_display = html.escape(normalized_model_id)
+        error_message = f"Error: The provided ID \"{sanitized_for_display}\" could not be found on Hugging Face or does not correspond to a model repository."
         logger.warning(f"Repository not found for ID: {normalized_model_id}")
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": normalized_model_id}
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
-    except Exception as api_err: # Catch other potential API errors
+    except Exception as api_err:  # Catch other potential API errors
+        sanitized_for_display = html.escape(normalized_model_id)
         error_message = f"Error verifying model ID with Hugging Face API: {str(api_err)}"
         logger.error(f"HF API error for {normalized_model_id}: {str(api_err)}")
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": normalized_model_id}
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
     # --- End Model Existence Check ---
 
@@ -801,12 +802,13 @@ async def generate_form(
         else:
             print("  completeness_score: IS NONE!")
         
-        # Render the template with all necessary data, with normalized model ID
+        # Render the template with all necessary data, with sanitized model ID for display
+        sanitized_for_display = html.escape(normalized_model_id)
         return templates.TemplateResponse(
             "result.html",
             {
                 "request": request,
-                "model_id": normalized_model_id,
+                "model_id": sanitized_for_display,
                 "aibom": aibom,
                 "enhancement_report": enhancement_report,
                 "completeness_score": completeness_score,
@@ -821,13 +823,14 @@ async def generate_form(
                 "weights": weights
             }
         )
-    # --- Main Exception Handling --- 
+    # --- Main Exception Handling ---
     except Exception as e:
         logger.error(f"Error generating AI SBOM: {str(e)}")
-        sbom_count = get_sbom_count() # Refresh count just in case
-        # Pass count, added normalized model ID
+        sbom_count = get_sbom_count()  # Refresh count just in case
+        # Sanitize model ID for safe HTML display
+        sanitized_for_display = html.escape(normalized_model_id)
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": str(e), "sbom_count": sbom_count, "model_id": normalized_model_id}
+            "error.html", {"request": request, "error": str(e), "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
 
 @app.get("/download/{filename}")
