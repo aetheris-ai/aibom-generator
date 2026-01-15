@@ -18,15 +18,15 @@ from .field_registry_manager import (
     DynamicFieldDetector  # Compatibility wrapper
 )
 
+logger = logging.getLogger(__name__)
+
 # Import schema validation (CycloneDX 1.6 JSON schema validation)
 try:
     from .validation import get_validation_summary as get_schema_validation_summary
     SCHEMA_VALIDATION_AVAILABLE = True
 except ImportError:
     SCHEMA_VALIDATION_AVAILABLE = False
-    print("⚠️ Schema validation module not available")
-
-logger = logging.getLogger(__name__)
+    logger.warning("Schema validation module not available")
 
 # Validation severity levels
 class ValidationSeverity(Enum):

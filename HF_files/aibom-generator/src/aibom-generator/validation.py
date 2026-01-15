@@ -6,7 +6,6 @@ CycloneDX 1.6 JSON schema to ensure compliance and interoperability.
 """
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -223,7 +222,7 @@ def validate_minimal_requirements(aibom: Dict[str, Any]) -> Tuple[bool, List[str
     # Validate serialNumber format if present
     serial = aibom.get("serialNumber")
     if serial and not serial.startswith("urn:uuid:"):
-        errors.append(f"Invalid serialNumber format: should start with 'urn:uuid:'")
+        errors.append(f"Invalid serialNumber format: '{serial}' should start with 'urn:uuid:'")
 
     # Validate components structure if present
     components = aibom.get("components", [])
