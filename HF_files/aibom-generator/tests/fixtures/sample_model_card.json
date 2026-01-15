@@ -1,0 +1,18 @@
+{
+  "model_id": "test-org/test-model",
+  "author": "test-org",
+  "pipeline_tag": "text-generation",
+  "library_name": "transformers",
+  "license": "apache-2.0",
+  "tags": ["pytorch", "text-generation", "llama"],
+  "downloads": 10000,
+  "likes": 500,
+  "model_card_content": "# Test Model\n\nThis is a test model for unit testing.\n\n## Model Details\n\n- **Model type:** Transformer\n- **Language:** English\n- **License:** Apache 2.0\n\n## Training Data\n\nTrained on test dataset.\n\n## Limitations\n\nThis model has some limitations.",
+  "config": {
+    "model_type": "llama",
+    "architectures": ["LlamaForCausalLM"],
+    "hidden_size": 4096,
+    "num_attention_heads": 32,
+    "num_hidden_layers": 32
+  }
+}
