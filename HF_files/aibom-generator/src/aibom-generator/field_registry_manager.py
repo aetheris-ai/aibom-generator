@@ -89,21 +89,24 @@ class FieldRegistryManager:
     
     def generate_field_classification(self) -> Dict[str, Any]:
         """
-        Generate FIELD_CLASSIFICATION dictionary from registry
+        Generate FIELD_CLASSIFICATION dictionary from registry.
+        Fields with exclude_from_scoring=true are skipped.
         """
         if self._field_classification is not None:
             return self._field_classification
-            
+
         fields = self.get_field_definitions()
         classification = {}
-        
+
         for field_name, field_config in fields.items():
+            if field_config.get("exclude_from_scoring", False):
+                continue
             classification[field_name] = {
                 "tier": field_config.get("tier", "supplementary"),
                 "weight": field_config.get("weight", 1),
                 "category": field_config.get("category", "unknown")
             }
-        
+
         self._field_classification = classification
         return classification
     

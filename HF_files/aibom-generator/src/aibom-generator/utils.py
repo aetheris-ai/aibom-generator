@@ -64,7 +64,11 @@ except Exception as e:
         "limitation": {"tier": "important", "weight": 3, "category": "component_model_card"},
         "safetyRiskAssessment": {"tier": "important", "weight": 3, "category": "component_model_card"},
         "typeOfModel": {"tier": "important", "weight": 3, "category": "component_model_card"},
-        
+
+        # Chat template security fields (Important - security-relevant integrity checks)
+        "chat_template_hash": {"tier": "important", "weight": 2.5, "category": "component_model_card"},
+        "template_security_status": {"tier": "important", "weight": 2, "category": "component_model_card"},
+
         # Supplementary fields (aligned with remaining SPDX optional fields)
         "modelExplainability": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
         "standardCompliance": {"tier": "supplementary", "weight": 2, "category": "metadata"},
@@ -77,7 +81,12 @@ except Exception as e:
         "metricDecisionThreshold": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
         "modelDataPreprocessing": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
         "autonomyType": {"tier": "supplementary", "weight": 1, "category": "metadata"},
-        "useSensitivePersonalInformation": {"tier": "supplementary", "weight": 2, "category": "component_model_card"}
+        "useSensitivePersonalInformation": {"tier": "supplementary", "weight": 2, "category": "component_model_card"},
+
+        # Supplementary chat template fields
+        "template_source": {"tier": "supplementary", "weight": 1, "category": "component_model_card"},
+        "model_lineage": {"tier": "supplementary", "weight": 1, "category": "component_model_card"},
+        "named_chat_templates": {"tier": "supplementary", "weight": 1, "category": "component_model_card"}
     }
     
     # Completeness profiles (silently aligned with SPDX requirements)

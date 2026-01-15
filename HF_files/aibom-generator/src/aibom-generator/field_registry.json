@@ -732,6 +732,145 @@
         "missing": "Missing critical field: downloadLocation - download location essential for model access",
         "recommendation": "Add the URL where the model can be downloaded or accessed"
       }
+    },
+    "chat_template": {
+      "tier": "supplementary",
+      "weight": 0,
+      "category": "component_model_card",
+      "exclude_from_scoring": true,
+      "description": "Chat template (Jinja) for conversation formatting - opt-in content field, hash is sufficient for integrity",
+      "jsonpath": "$.components[0].modelCard.properties[?(@.name=='chat_template')].value",
+      "aibom_generation": {
+        "location": "$.components[0].modelCard.properties",
+        "rule": "include_if_available",
+        "source_fields": ["chat_template"],
+        "validation": "optional",
+        "data_type": "string"
+      },
+      "scoring": {
+        "points": 0,
+        "required_for_profiles": [],
+        "category_contribution": 0
+      },
+      "validation_message": {
+        "missing": "Chat template content not included (opt-in field)",
+        "recommendation": "Use --include-template-content flag if full template needed for inspection"
+      }
+    },
+    "chat_template_hash": {
+      "tier": "important",
+      "weight": 2.5,
+      "category": "component_model_card",
+      "description": "SHA-256 hash of chat template for integrity verification",
+      "jsonpath": "$.components[0].modelCard.properties[?(@.name=='chat_template_hash')].value",
+      "aibom_generation": {
+        "location": "$.components[0].modelCard.properties",
+        "rule": "include_if_available",
+        "source_fields": ["chat_template_hash"],
+        "validation": "optional",
+        "data_type": "string"
+      },
+      "scoring": {
+        "points": 2.5,
+        "required_for_profiles": ["advanced"],
+        "category_contribution": 0.083
+      },
+      "validation_message": {
+        "missing": "Missing important field: chat_template_hash - cryptographic hash for template integrity",
+        "recommendation": "Compute SHA-256 hash of chat_template for integrity verification"
+      }
+    },
+    "template_source": {
+      "tier": "supplementary",
+      "weight": 1.0,
+      "category": "component_model_card",
+      "description": "Provenance and lineage information for the chat template",
+      "jsonpath": "$.components[0].modelCard.properties[?(@.name=='template_source')].value",
+      "aibom_generation": {
+        "location": "$.components[0].modelCard.properties",
+        "rule": "include_if_available",
+        "source_fields": ["template_source"],
+        "validation": "optional",
+        "data_type": "object"
+      },
+      "scoring": {
+        "points": 1.0,
+        "required_for_profiles": [],
+        "category_contribution": 0.033
+      },
+      "validation_message": {
+        "missing": "Missing supplementary field: template_source - provenance information for chat template",
+        "recommendation": "Include source file, repository, and base model lineage for template provenance"
+      }
+    },
+    "template_security_status": {
+      "tier": "important",
+      "weight": 2.0,
+      "category": "component_model_card",
+      "description": "Security attestation for the chat template (populated by external scanners)",
+      "jsonpath": "$.components[0].modelCard.properties[?(@.name=='template_security_status')].value",
+      "aibom_generation": {
+        "location": "$.components[0].modelCard.properties",
+        "rule": "include_if_available",
+        "source_fields": ["template_security_status"],
+        "validation": "optional",
+        "data_type": "object"
+      },
+      "scoring": {
+        "points": 2.0,
+        "required_for_profiles": ["advanced"],
+        "category_contribution": 0.067
+      },
+      "validation_message": {
+        "missing": "Missing important field: template_security_status - security attestation for chat template",
+        "recommendation": "Provide external security scanner attestation or mark as 'unscanned'"
+      }
+    },
+    "model_lineage": {
+      "tier": "supplementary",
+      "weight": 1.0,
+      "category": "component_model_card",
+      "description": "Template inheritance and derivation tracking for chat templates",
+      "jsonpath": "$.components[0].modelCard.properties[?(@.name=='model_lineage')].value",
+      "aibom_generation": {
+        "location": "$.components[0].modelCard.properties",
+        "rule": "include_if_available",
+        "source_fields": ["model_lineage"],
+        "validation": "optional",
+        "data_type": "object"
+      },
+      "scoring": {
+        "points": 1.0,
+        "required_for_profiles": [],
+        "category_contribution": 0.033
+      },
+      "validation_message": {
+        "missing": "Missing supplementary field: model_lineage - template inheritance tracking",
+        "recommendation": "Include base model and template derivation information"
+      }
+    },
+    "named_chat_templates": {
+      "tier": "supplementary",
+      "weight": 1.0,
+      "category": "component_model_card",
+      "description": "Hash map for models with multiple named templates (tool_use, rag, etc.)",
+      "jsonpath": "$.components[0].modelCard.properties[?(@.name=='named_chat_templates')].value",
+      "aibom_generation": {
+        "location": "$.components[0].modelCard.properties",
+        "rule": "include_if_available",
+        "source_fields": ["named_chat_templates"],
+        "validation": "optional",
+        "data_type": "object"
+      },
+      "scoring": {
+        "points": 1.0,
+        "required_for_profiles": [],
+        "category_contribution": 0.033
+      },
+      "validation_message": {
+        "missing": "Missing supplementary field: named_chat_templates - hashes for named template variants",
+        "recommendation": "Include SHA-256 hashes for named templates like tool_use, rag, etc."
+      }
     }
   }
 }

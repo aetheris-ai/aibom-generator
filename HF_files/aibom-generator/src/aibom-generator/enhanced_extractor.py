@@ -19,6 +19,7 @@ import json
 import logging
 import re
 import requests
+import hashlib
 from typing import Dict, Any, Optional, List, Tuple
 from enum import Enum
 from dataclasses import dataclass, field
@@ -41,6 +42,25 @@ except ImportError:
     except ImportError:
         REGISTRY_AVAILABLE = False
         print("⚠️ Field registry manager not available, falling back to legacy extraction")
+
+try:
+    from .gguf_metadata import (
+        list_gguf_files,
+        fetch_gguf_metadata_from_repo,
+        map_gguf_to_aibom_metadata,
+    )
+    GGUF_AVAILABLE = True
+except ImportError:
+    try:
+        from gguf_metadata import (
+            list_gguf_files,
+            fetch_gguf_metadata_from_repo,
+            map_gguf_to_aibom_metadata,
+        )
+        GGUF_AVAILABLE = True
+    except ImportError:
+        GGUF_AVAILABLE = False
+        logger.debug("GGUF metadata extraction not available")
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
@@ -222,22 +242,26 @@ class EnhancedExtractor:
 
         
     
-    def extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard]) -> Dict[str, Any]:
+    def extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard],
+                         template_attestation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Main extraction method with full registry integration.
-        
+
         This method automatically discovers all fields from the registry and attempts
         to extract them without requiring code changes when new fields are added.
-        
+
         Args:
             model_id: Hugging Face model identifier
             model_info: Model information from HF API
             model_card: Model card object from HF
-            
+            template_attestation: Optional external security attestation for chat template
+
         Returns:
             Dictionary of extracted metadata
         """
         logger.info(f"🚀 Starting registry-driven extraction for model: {model_id}")
+
+        self._template_attestation = template_attestation
         
         # Initialize extraction results tracking
         self.extraction_results = {}
@@ -271,7 +295,8 @@ class EnhancedExtractor:
             'model_card': model_card,
             'readme_content': self._get_readme_content(model_card, model_id),
             'config_data': self._download_and_parse_config(model_id, "config.json"),
-            'tokenizer_config': self._download_and_parse_config(model_id, "tokenizer_config.json")
+            'tokenizer_config': self._download_and_parse_config(model_id, "tokenizer_config.json"),
+            'template_attestation': getattr(self, '_template_attestation', None)
         }
         
         # Process each field from the registry
@@ -300,10 +325,26 @@ class EnhancedExtractor:
                 continue
         
         logger.info(f"📊 Registry extraction complete: {successful_extractions} successful, {failed_extractions} failed")
-        
+
+        chat_template_fields = self._extract_chat_template_fields(
+            model_id=model_id,
+            tokenizer_config=extraction_context.get('tokenizer_config'),
+            model_info=model_info,
+            template_attestation=extraction_context.get('template_attestation')
+        )
+        if chat_template_fields:
+            metadata.update(chat_template_fields)
+            logger.info(f"✅ Extracted {len(chat_template_fields)} chat template integrity fields")
+
+        if GGUF_AVAILABLE and not chat_template_fields:
+            gguf_metadata = self._extract_gguf_metadata(model_id, extraction_context.get('template_attestation'))
+            if gguf_metadata:
+                metadata.update(gguf_metadata)
+                logger.info(f"✅ Extracted {len(gguf_metadata)} fields from GGUF metadata")
+
         # Add external references
         metadata.update(self._generate_external_references(model_id, metadata))
-        
+
         return metadata
     
     def _extract_registry_field(self, field_name: str, field_config: Dict[str, Any], context: Dict[str, Any]) -> Any:
@@ -495,7 +536,8 @@ class EnhancedExtractor:
             'architectures': ('config_data', 'architectures'),
             'vocab_size': ('config_data', 'vocab_size'),
             'tokenizer_class': ('tokenizer_config', 'tokenizer_class'),
-            'typeOfModel': ('config_data', 'model_type')
+            'typeOfModel': ('config_data', 'model_type'),
+            'chat_template': ('tokenizer_config', 'chat_template')
         }
         
         if field_name in config_mappings:
@@ -644,9 +686,209 @@ class EnhancedExtractor:
             confidence=ConfidenceLevel.HIGH,
             extraction_method="url_generation"
         )
-        
+
         return result
-    
+
+    def _extract_chat_template_fields(self, model_id: str, tokenizer_config: Optional[Dict[str, Any]],
+                                       model_info: Dict[str, Any], template_attestation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Extract chat template and compute integrity metadata.
+
+        This method extracts the chat template from tokenizer_config.json and computes:
+        - chat_template: The full Jinja template string
+        - chat_template_hash: SHA-256 hash for integrity verification
+        - template_source: Provenance information including lineage
+        - template_security_status: Security attestation (from external scanner or default unscanned)
+
+        Args:
+            model_id: Hugging Face model identifier
+            tokenizer_config: Parsed tokenizer_config.json data
+            model_info: Model information from HF API
+            template_attestation: Optional external security attestation
+
+        Returns:
+            Dictionary containing chat template fields
+        """
+        result = {}
+
+        if not tokenizer_config:
+            return result
+
+        chat_template = tokenizer_config.get("chat_template")
+        if not chat_template:
+            logger.debug(f"No chat_template found in tokenizer_config for {model_id}")
+            return result
+
+        logger.info(f"🔧 Found chat_template in {model_id} (length: {len(chat_template)} chars)")
+        result["chat_template"] = chat_template
+
+        template_bytes = chat_template.encode('utf-8')
+        template_hash = hashlib.sha256(template_bytes).hexdigest()
+        result["chat_template_hash"] = f"sha256:{template_hash}"
+
+        base_model = None
+        inherited_from_base = False
+
+        if hasattr(model_info, 'card_data') and model_info.card_data:
+            base_model = getattr(model_info.card_data, 'base_model', None)
+        if not base_model and isinstance(model_info, dict):
+            base_model = model_info.get('base_model')
+
+        inherited_from_base = base_model is not None
+
+        result["template_source"] = {
+            "source_file": "tokenizer_config.json",
+            "source_repository": f"https://huggingface.co/{model_id}",
+            "extraction_timestamp": datetime.utcnow().isoformat() + "Z",
+            "inherited_from_base": inherited_from_base,
+            "base_model": base_model
+        }
+
+        if template_attestation:
+            result["template_security_status"] = {
+                "status": template_attestation.get("status", "unscanned"),
+                "scanner_name": template_attestation.get("scanner_name"),
+                "scanner_version": template_attestation.get("scanner_version"),
+                "scan_timestamp": template_attestation.get("scan_timestamp"),
+                "findings": template_attestation.get("findings", [])
+            }
+            logger.info(f"✅ Using external security attestation: {result['template_security_status']['status']}")
+        else:
+            result["template_security_status"] = {
+                "status": "unscanned",
+                "scanner_name": None,
+                "scanner_version": None,
+                "scan_timestamp": None,
+                "findings": []
+            }
+
+        for field_name in ["chat_template", "chat_template_hash", "template_source", "template_security_status"]:
+            self.extraction_results[field_name] = ExtractionResult(
+                value=result[field_name],
+                source=DataSource.CONFIG_FILE if field_name in ["chat_template", "chat_template_hash"] else DataSource.REGISTRY_DRIVEN,
+                confidence=ConfidenceLevel.HIGH,
+                extraction_method="chat_template_extraction"
+            )
+
+        return result
+
+    def _extract_gguf_metadata(self, model_id: str, template_attestation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Extract metadata from GGUF files in the repository.
+
+        Scans ALL GGUF files and groups by (model_name, architecture) to verify
+        chat template consistency across quantizations of the same model.
+        Different models may legitimately have different templates.
+
+        By default, only includes: chat_template_hash, hyperparameter, and core model fields.
+        """
+        if not GGUF_AVAILABLE:
+            return {}
+
+        try:
+            gguf_files = list_gguf_files(model_id, hf_token=getattr(self.hf_api, 'token', None))
+            if not gguf_files:
+                logger.debug(f"No GGUF files found in {model_id}")
+                return {}
+
+            logger.info(f"🔧 Found {len(gguf_files)} GGUF file(s) in {model_id}")
+
+            model_groups = {}
+            primary_aibom = None
+
+            for gguf_filename in gguf_files:
+                logger.info(f"📦 Scanning GGUF: {gguf_filename}")
+                try:
+                    gguf_info = fetch_gguf_metadata_from_repo(
+                        model_id,
+                        gguf_filename,
+                        hf_token=getattr(self.hf_api, 'token', None)
+                    )
+
+                    gguf_aibom = map_gguf_to_aibom_metadata(
+                        gguf_info,
+                        model_id,
+                        include_template_content=False
+                    )
+
+                    model_name = gguf_aibom.get('name', 'unknown')
+                    architecture = gguf_aibom.get('model_type', 'unknown')
+                    group_key = (model_name, architecture)
+
+                    template_hash = gguf_aibom.get('chat_template_hash')
+
+                    if group_key not in model_groups:
+                        model_groups[group_key] = []
+                    model_groups[group_key].append((gguf_filename, template_hash, gguf_aibom))
+
+                    if primary_aibom is None:
+                        primary_aibom = gguf_aibom
+
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to scan {gguf_filename}: {e}")
+                    continue
+
+            if not primary_aibom:
+                logger.warning(f"⚠️ No GGUF files could be parsed in {model_id}")
+                return {}
+
+            consistency_results = []
+            has_warning = False
+
+            for (model_name, architecture), files in model_groups.items():
+                hashes = {f[0]: f[1] for f in files if f[1]}
+                unique_hashes = set(hashes.values())
+
+                group_result = {
+                    'model_name': model_name,
+                    'architecture': architecture,
+                    'files_scanned': len(hashes),
+                    'consistent': len(unique_hashes) <= 1,
+                }
+
+                if len(unique_hashes) > 1:
+                    has_warning = True
+                    group_result['unique_hashes'] = len(unique_hashes)
+                    group_result['hashes_by_file'] = hashes
+                    logger.warning(f"⚠️ WARNING: Chat template mismatch in {model_name} ({architecture}):")
+                    for filename, hash_val in hashes.items():
+                        logger.warning(f"   {filename}: {hash_val[:50]}...")
+                else:
+                    logger.info(f"✅ Chat template consistent for {model_name} ({architecture}) across {len(hashes)} file(s)")
+
+                consistency_results.append(group_result)
+
+            primary_aibom['chat_template_consistency'] = {
+                'all_consistent': not has_warning,
+                'files_scanned': sum(len(files) for files in model_groups.values()),
+                'model_groups_checked': len(model_groups),
+                'groups': consistency_results if has_warning else None,
+                'warning': 'Template mismatch detected across quantizations of same model' if has_warning else None
+            }
+
+            default_fields = {
+                'model_type', 'typeOfModel', 'name', 'tokenizer_class', 'vocab_size',
+                'context_length', 'gguf_filename', 'quantization',
+                'chat_template_hash', 'hyperparameter', 'chat_template_consistency',
+            }
+
+            gguf_aibom = {k: v for k, v in primary_aibom.items() if k in default_fields}
+
+            for field_name, value in gguf_aibom.items():
+                if value is not None:
+                    self.extraction_results[field_name] = ExtractionResult(
+                        value=value,
+                        source=DataSource.CONFIG_FILE,
+                        confidence=ConfidenceLevel.HIGH,
+                        extraction_method="gguf_binary_header"
+                    )
+
+            return gguf_aibom
+
+        except Exception as e:
+            logger.warning(f"⚠️ GGUF extraction failed for {model_id}: {e}")
+            return {}
+
     # Legacy methods for backward compatibility
     def _layer1_structured_api(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard]) -> Dict[str, Any]:
         """Legacy Layer 1: Enhanced structured data extraction from HF API and model card."""
@@ -896,23 +1138,25 @@ class EnhancedExtractor:
 
 
 # Convenience function for drop-in replacement
-def extract_enhanced_metadata(model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard], hf_api: Optional[HfApi] = None) -> Dict[str, Any]:
+def extract_enhanced_metadata(model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard],
+                              hf_api: Optional[HfApi] = None, template_attestation: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Drop-in replacement function for _extract_structured_metadata with registry integration.
-    
+
     This function automatically picks up new fields from the registry without code changes.
-    
+
     Args:
         model_id: Hugging Face model identifier
         model_info: Model information from HF API
         model_card: Model card object from HF
         hf_api: Optional HuggingFace API instance
-        
+        template_attestation: Optional external security attestation for chat template
+
     Returns:
         Dictionary of extracted metadata
     """
     extractor = EnhancedExtractor(hf_api)
-    return extractor.extract_metadata(model_id, model_info, model_card)
+    return extractor.extract_metadata(model_id, model_info, model_card, template_attestation)
 
 
 if __name__ == "__main__":
@@ -948,4 +1192,3 @@ if __name__ == "__main__":
             
     except Exception as e:
         print(f"Error testing extractor: {e}")
-
