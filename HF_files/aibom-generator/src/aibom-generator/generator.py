@@ -114,8 +114,7 @@ class AIBOMGenerator:
                 else:
                     logger.debug("No properties found in component")
             else:
-                logger.debug("No components found in AIBOM")
-                self._log_field_preservation(original_metadata, original_aibom)
+                logger.warning("No components found in AIBOM for model_id=%s", model_id)
 
             
             # Calculate initial score with industry-neutral approach if enabled
