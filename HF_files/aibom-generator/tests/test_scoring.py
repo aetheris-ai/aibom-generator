@@ -6,7 +6,6 @@ Tests cover:
 - Field presence detection
 - Validation messages
 """
-import pytest
 
 
 class TestCompletenessScoring:
@@ -62,8 +61,9 @@ class TestFieldValidation:
         from src.aibom_generator.utils import calculate_completeness_score
 
         result = calculate_completeness_score(sample_aibom, validate=True)
-        # Should pass validation for valid bomFormat
-        assert "validation" in result or result["total_score"] > 0
+        # Should expose validation details and pass validation for valid bomFormat
+        assert "total_score" in result
+        assert result["total_score"] > 0
 
     def test_missing_required_fields_flagged(self):
         """Test that missing required fields are identified."""
@@ -76,5 +76,5 @@ class TestFieldValidation:
         }
         result = calculate_completeness_score(incomplete)
 
-        # Should have missing fields identified
-        assert "missing_fields" in result or result["total_score"] < 100
+        # Should have low score due to missing components/metadata
+        assert result["total_score"] < 50

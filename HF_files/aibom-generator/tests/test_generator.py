@@ -86,7 +86,7 @@ class TestAIBOMGenerator:
 
         output_file = tmp_path / "test_aibom.json"
         generator = AIBOMGenerator()
-        result = generator.generate_aibom(
+        generator.generate_aibom(
             "test-org/test-model",
             output_file=str(output_file)
         )
@@ -100,7 +100,7 @@ class TestAIBOMGenerator:
 class TestPURLEncoding:
     """Tests for PURL (Package URL) encoding."""
 
-    @pytest.mark.xfail(reason="PURL encoding fix pending - see Issue #13 / PR #18")
+    @pytest.mark.xfail(reason="PURL encoding fix pending - see PR #18")
     def test_purl_contains_encoded_slash(self, mock_hf_api):
         """Test that PURL encodes slash in model ID as %2F.
 
