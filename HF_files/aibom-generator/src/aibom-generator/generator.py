@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 import uuid
 import datetime
 from typing import Dict, Optional, Any, List
@@ -791,7 +792,7 @@ class AIBOMGenerator:
             "mpl-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
         }
         
-        return license_urls.get(license_id.lower(), "https://spdx.org/licenses/" )
+        return license_urls.get(license_id.lower(), "https://spdx.org/licenses/")
 
     def _fetch_with_retry(self, fetch_func, *args, max_retries=3, **kwargs):
         """Fetch data with retry logic for network failures."""
@@ -800,7 +801,7 @@ class AIBOMGenerator:
                 return fetch_func(*args, **kwargs)
             except Exception as e:
                 if attempt == max_retries - 1:
-                    logger.warning(f"Failed to fetch after {max_retries} attempts: {e}")
+                    logger.warning("Failed to fetch after %d attempts: %s", max_retries, e)
                     return None
                 time.sleep(1 * (attempt + 1))  # Exponential backoff
         return None
