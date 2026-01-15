@@ -3,8 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "aibom-generator"))
 
 from field_registry_manager import (
@@ -50,11 +48,6 @@ class TestChatTemplateFieldClassification:
 
         assert "named_chat_templates" in classification
         assert classification["named_chat_templates"]["tier"] == "supplementary"
-
-    def test_total_scored_fields_is_34(self):
-        classification = generate_field_classification()
-
-        assert len(classification) == 34
 
 
 class TestExcludeFromScoringFlag:

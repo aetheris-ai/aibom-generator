@@ -2,14 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "aibom-generator"))
 
 from gguf_metadata import (
-    GGUFModelInfo,
-    GGUFChatTemplateInfo,
     map_gguf_to_aibom_metadata,
 )
 

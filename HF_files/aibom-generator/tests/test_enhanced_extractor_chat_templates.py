@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src" / "aibom-generator"))
 
-from enhanced_extractor import EnhancedExtractor, ConfidenceLevel, DataSource
+from enhanced_extractor import EnhancedExtractor, ConfidenceLevel
 
 
 class TestChatTemplateExtraction:
