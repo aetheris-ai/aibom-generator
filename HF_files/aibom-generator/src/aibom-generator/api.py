@@ -858,15 +858,19 @@ class GenerateRequest(BaseModel):
 async def api_generate_aibom(request: GenerateRequest):
     """
     Generate an AI SBOM for a specified Hugging Face model.
-    
+
     This endpoint accepts JSON input and returns JSON output.
     """
     try:
-        # Sanitize and validate input
-        sanitized_model_id = html.escape(request.model_id)
-        if not is_valid_hf_input(sanitized_model_id):
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
+        if not is_valid_hf_input(request.model_id):
+            sanitized_for_display = html.escape(request.model_id)
+            logger.warning(f"Invalid model input format received: {sanitized_for_display}")
             raise HTTPException(status_code=400, detail="Invalid model ID format")
-            
+
+        # Only sanitize AFTER validation passes (for safe display/logging)
+        sanitized_model_id = html.escape(request.model_id)
         normalized_model_id = _normalise_model_id(sanitized_model_id)
         
         # Verify model exists
@@ -936,11 +940,15 @@ async def api_generate_with_report(request: GenerateRequest):
     This endpoint accepts JSON input and returns JSON output with completeness score.
     """
     try:
-        # Sanitize and validate input
-        sanitized_model_id = html.escape(request.model_id)
-        if not is_valid_hf_input(sanitized_model_id):
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
+        if not is_valid_hf_input(request.model_id):
+            sanitized_for_display = html.escape(request.model_id)
+            logger.warning(f"Invalid model input format received: {sanitized_for_display}")
             raise HTTPException(status_code=400, detail="Invalid model ID format")
-            
+
+        # Only sanitize AFTER validation passes (for safe display/logging)
+        sanitized_model_id = html.escape(request.model_id)
         normalized_model_id = _normalise_model_id(sanitized_model_id)
         
         # Verify model exists
@@ -1038,7 +1046,7 @@ async def api_generate_with_report(request: GenerateRequest):
         raise HTTPException(status_code=500, detail=f"Error generating AI SBOM: {str(e)}")
 
 
-@app.get("/api/models/{model_id:path}/score" )
+@app.get("/api/models/{model_id:path}/score")
 async def get_model_score(
     model_id: str,
     hf_token: Optional[str] = None,
@@ -1048,11 +1056,15 @@ async def get_model_score(
     Get the completeness score for a model without generating a full AIBOM.
     """
     try:
-        # Sanitize and validate input
-        sanitized_model_id = html.escape(model_id)
-        if not is_valid_hf_input(sanitized_model_id):
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
+        if not is_valid_hf_input(model_id):
+            sanitized_for_display = html.escape(model_id)
+            logger.warning(f"Invalid model input format received: {sanitized_for_display}")
             raise HTTPException(status_code=400, detail="Invalid model ID format")
-            
+
+        # Only sanitize AFTER validation passes (for safe display/logging)
+        sanitized_model_id = html.escape(model_id)
         normalized_model_id = _normalise_model_id(sanitized_model_id)
         
         # Verify model exists
@@ -1130,14 +1142,17 @@ async def batch_generate(request: BatchRequest):
     Start a batch job to generate AIBOMs for multiple models.
     """
     try:
-        # Validate model IDs
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
         valid_model_ids = []
         for model_id in request.model_ids:
-            sanitized_id = html.escape(model_id)
-            if is_valid_hf_input(sanitized_id):
+            if is_valid_hf_input(model_id):
+                # Only sanitize AFTER validation passes
+                sanitized_id = html.escape(model_id)
                 valid_model_ids.append(sanitized_id)
             else:
-                logger.warning(f"Skipping invalid model ID: {model_id}")
+                sanitized_for_display = html.escape(model_id)
+                logger.warning(f"Skipping invalid model ID: {sanitized_for_display}")
         
         if not valid_model_ids:
             raise HTTPException(status_code=400, detail="No valid model IDs provided")
