@@ -583,18 +583,19 @@ async def generate_form(
         )
         
     sbom_count = get_sbom_count() # Get count early for context
-    
-    # --- Input Sanitization --- 
-    sanitized_model_id = html.escape(model_id)
-    
-    # --- Input Format Validation --- 
-    if not is_valid_hf_input(sanitized_model_id):
+
+    # --- Input Format Validation (BEFORE sanitization for security) ---
+    if not is_valid_hf_input(model_id):
         error_message = "Invalid input format. Please provide a valid Hugging Face model ID (e.g., 'owner/model') or a full model URL (e.g., 'https://huggingface.co/owner/model') ."
         logger.warning(f"Invalid model input format received: {model_id}") # Log original input
-        # Try to display sanitized input in error message
+        # Sanitize for safe display in error response
+        sanitized_for_display = html.escape(model_id)
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_model_id}
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
+
+    # --- Input Sanitization (AFTER validation) ---
+    sanitized_model_id = html.escape(model_id)
         
     # --- Normalize the SANITIZED and VALIDATED model ID --- 
     normalized_model_id = _normalise_model_id(sanitized_model_id)
