@@ -1094,6 +1094,8 @@
                             ('limitation', 'Important'),
                             ('safetyRiskAssessment', 'Important'),
                             ('typeOfModel', 'Important'),
+                            ('chat_template_hash', 'Important'),
+                            ('template_security_status', 'Important'),
                             ('modelExplainability', 'Supplementary'),
                             ('energyQuantity', 'Supplementary'),
                             ('energyUnit', 'Supplementary'),
@@ -1102,7 +1104,10 @@
                             ('metric', 'Supplementary'),
                             ('metricDecisionThreshold', 'Supplementary'),
                             ('modelDataPreprocessing', 'Supplementary'),
-                            ('useSensitivePersonalInformation', 'Supplementary')
+                            ('useSensitivePersonalInformation', 'Supplementary'),
+                            ('template_source', 'Supplementary'),
+                            ('model_lineage', 'Supplementary'),
+                            ('named_chat_templates', 'Supplementary')
                         ] %}
                         {% for field, tier in model_card_fields %}
                         <tr>
@@ -1118,6 +1123,8 @@
                                 {% if completeness_score.field_checklist.get(field, '').startswith('✔') %}
                                     {% if field == 'typeOfModel' %}
                                         $.metadata.properties[name="{{ field }}"]
+                                    {% elif field in ['chat_template_hash', 'template_source', 'template_security_status', 'model_lineage', 'named_chat_templates'] %}
+                                        $.components[0].modelCard.properties[name="{{ field }}"]
                                     {% else %}
                                         $.components[0].modelCard.{{ field }}
                                     {% endif %}

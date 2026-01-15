@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Registry-driven field classification imports
 try:
-    from src.aibom_generator.field_registry_manager import (
+    from field_registry_manager import (
         get_field_registry_manager,
         generate_field_classification,
         get_configurable_scoring_weights
@@ -852,6 +852,7 @@ class GenerateRequest(BaseModel):
     include_inference: bool = True
     use_best_practices: bool = True
     hf_token: Optional[str] = None
+    template_attestation: Optional[Dict[str, Any]] = None  # External security attestation for chat template
 
 @app.post("/api/generate")
 async def api_generate_aibom(request: GenerateRequest):
@@ -898,10 +899,11 @@ async def api_generate_aibom(request: GenerateRequest):
             aibom = generator.generate_aibom(
                 model_id=sanitized_model_id,
                 include_inference=request.include_inference,
-                use_best_practices=request.use_best_practices
+                use_best_practices=request.use_best_practices,
+                template_attestation=request.template_attestation
             )
             enhancement_report = generator.get_enhancement_report()
-            
+
             # Save AIBOM to file
             filename = f"{normalized_model_id.replace('/', '_')}_ai_sbom.json"
             filepath = os.path.join(OUTPUT_DIR, filename)
@@ -972,9 +974,10 @@ async def api_generate_with_report(request: GenerateRequest):
             aibom = generator.generate_aibom(
                 model_id=sanitized_model_id,
                 include_inference=request.include_inference,
-                use_best_practices=request.use_best_practices
+                use_best_practices=request.use_best_practices,
+                template_attestation=request.template_attestation
             )
-            
+
             # Calculate completeness score
             try:
                 completeness_score = calculate_completeness_score(aibom, validate=True, use_best_practices=True)

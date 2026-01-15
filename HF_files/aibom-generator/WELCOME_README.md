@@ -13,6 +13,7 @@ This tool is also published on [CycloneDX Tool Center](https://cyclonedx.org/too
 ## 📦 What It Does
 
 - Extracts metadata from models hosted on Hugging Face 🤗
+- Extracts metadata from GGUF files (local or remote) via header-only scanning
 - Generates an AIBOM in JSON format based on CycloneDX 1.6
 - Assesses metadata completeness and provides a score
 
@@ -23,6 +24,11 @@ This tool is also published on [CycloneDX Tool Center](https://cyclonedx.org/too
 - Human-readable SBOM view
 - Download of generated AIBOM in CycloneDX JSON format
 - AIBOM completeness scoring
+- GGUF metadata extraction (architecture, quantization, chat templates)
+- Chat template integrity tracking with SHA-256 hashes
+- Extraction provenance and model lineage tracking
+- Support for named templates (tool_use, rag, etc.)
+- CycloneDX 1.6 compatible extension properties
 - APIs
 
 ---
