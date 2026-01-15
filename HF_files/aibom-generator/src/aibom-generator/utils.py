@@ -20,6 +20,14 @@ from .field_registry_manager import (
 
 logger = logging.getLogger(__name__)
 
+# Import schema validation (CycloneDX 1.6 JSON schema validation)
+try:
+    from .validation import get_validation_summary as get_schema_validation_summary
+    SCHEMA_VALIDATION_AVAILABLE = True
+except ImportError:
+    SCHEMA_VALIDATION_AVAILABLE = False
+    logger.warning("Schema validation module not available")
+
 # Validation severity levels
 class ValidationSeverity(Enum):
     ERROR = "error"
@@ -1149,6 +1157,10 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any], extraction_results: 
         }
     }
     
+    # Add schema validation results if available
+    if SCHEMA_VALIDATION_AVAILABLE:
+        result["schema_validation"] = get_schema_validation_summary(aibom)
+
     # Debug the final result
     if 'category_details' in result:
         print(f"  category_details exists: {list(result['category_details'].keys())}")
@@ -1156,7 +1168,7 @@ def calculate_industry_neutral_score(aibom: Dict[str, Any], extraction_results: 
         print(f"  metadata details: {result['category_details'].get('metadata')}")
     else:
         print("  category_details: MISSING!")
-    
+
     return result
 
 
