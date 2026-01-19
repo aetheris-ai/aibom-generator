@@ -1,13 +1,13 @@
 import json
 import uuid
 import datetime
-import json
 from typing import Dict, Optional, Any, List
 
 from huggingface_hub import HfApi, ModelCard
 from huggingface_hub.repocard_data import EvalResult
 from urllib.parse import urlparse
-from .utils import calculate_completeness_score
+from .utils import calculate_completeness_score, normalize_license_id
+from .validation import validate_aibom as validate_schema, get_validation_summary as get_schema_validation_summary
 
 # Import registry-aware enhanced extraction if available
 try:
@@ -177,12 +177,21 @@ class AIBOMGenerator:
                     print(f"🚨 ERROR DETAILS: {str(e)}")
             # Create final AIBOM with potentially enhanced metadata
             aibom = self._create_aibom_structure(model_id, final_metadata)
-            
+
+            # Validate AIBOM against CycloneDX 1.6 schema
+            schema_valid, validation_errors = validate_schema(aibom, strict=False)
+            if not schema_valid:
+                print(f"⚠️ AIBOM validation found {len(validation_errors)} issue(s):")
+                for error in validation_errors[:5]:  # Show first 5 errors
+                    print(f"   - {error}")
+            else:
+                print("✅ AIBOM passes CycloneDX 1.6 schema validation")
+
             # Calculate final score with enhanced extraction results
             extraction_results = self.get_extraction_results()
             final_score = calculate_completeness_score(
-                aibom, 
-                validate=True, 
+                aibom,
+                validate=True,
                 use_best_practices=use_best_practices,
                 extraction_results=extraction_results  # Pass enhanced results
             )
@@ -198,7 +207,12 @@ class AIBOMGenerator:
                 "ai_model": ai_model_name if ai_enhanced else None,
                 "original_score": original_score,
                 "final_score": final_score,
-                "improvement": round(final_score["total_score"] - original_score["total_score"], 2) if ai_enhanced else 0
+                "improvement": round(final_score["total_score"] - original_score["total_score"], 2) if ai_enhanced else 0,
+                "schema_validation": {
+                    "valid": schema_valid,
+                    "error_count": len(validation_errors) if not schema_valid else 0,
+                    "errors": validation_errors[:10] if not schema_valid else []
+                }
             }
 
             # Return only the AIBOM to maintain compatibility with existing code
@@ -610,18 +624,30 @@ class AIBOMGenerator:
             print(f"✅ COMPONENT: Found license = {license_value}")
 
         if license_value:
-            component["licenses"] = [{
-                "license": {
-                    "id": license_value,
-                    "url": self._get_license_url(license_value)
-                }
-            }]
-            print(f"✅ COMPONENT: Added license = {license_value}")
+            # Normalize to SPDX-compliant license ID
+            normalized_license = normalize_license_id(license_value)
+            if normalized_license and normalized_license not in ["NONE", None]:
+                component["licenses"] = [{
+                    "license": {
+                        "id": normalized_license,
+                        "url": self._get_license_url(normalized_license)
+                    }
+                }]
+                print(f"✅ COMPONENT: Added license = {normalized_license}")
+            else:
+                # Non-SPDX license - use name instead of id
+                component["licenses"] = [{
+                    "license": {
+                        "name": license_value,
+                        "url": self._get_license_url(license_value)
+                    }
+                }]
+                print(f"✅ COMPONENT: Added custom license = {license_value}")
         else:
+            # No license - use name for NOASSERTION (not a valid SPDX id)
             component["licenses"] = [{
                 "license": {
-                    "id": "NOASSERTION",
-                    "url": "https://spdx.org/licenses/"
+                    "name": "NOASSERTION"
                 }
             }]
             print(f"⚠️ COMPONENT: No license found, using NOASSERTION")
@@ -837,22 +863,37 @@ class AIBOMGenerator:
         
     def _get_license_url(self, license_id: str) -> str:
         """Get the URL for a license based on its SPDX ID."""
+        # Use SPDX-compliant license IDs as keys
         license_urls = {
-            "apache-2.0": "https://www.apache.org/licenses/LICENSE-2.0",
-            "mit": "https://opensource.org/licenses/MIT",
-            "bsd-3-clause": "https://opensource.org/licenses/BSD-3-Clause",
-            "gpl-3.0": "https://www.gnu.org/licenses/gpl-3.0.en.html",
-            "cc-by-4.0": "https://creativecommons.org/licenses/by/4.0/",
-            "cc-by-sa-4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
-            "cc-by-nc-4.0": "https://creativecommons.org/licenses/by-nc/4.0/",
-            "cc-by-nd-4.0": "https://creativecommons.org/licenses/by-nd/4.0/",
-            "cc-by-nc-sa-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-            "cc-by-nc-nd-4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
-            "lgpl-3.0": "https://www.gnu.org/licenses/lgpl-3.0.en.html",
-            "mpl-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
+            "Apache-2.0": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+            "MIT": "https://opensource.org/licenses/MIT",
+            "BSD-3-Clause": "https://opensource.org/licenses/BSD-3-Clause",
+            "BSD-2-Clause": "https://opensource.org/licenses/BSD-2-Clause",
+            "GPL-3.0-only": "https://www.gnu.org/licenses/gpl-3.0.txt",
+            "GPL-2.0-only": "https://www.gnu.org/licenses/gpl-2.0.txt",
+            "LGPL-3.0-only": "https://www.gnu.org/licenses/lgpl-3.0.txt",
+            "CC-BY-4.0": "https://creativecommons.org/licenses/by/4.0/legalcode",
+            "CC-BY-SA-4.0": "https://creativecommons.org/licenses/by-sa/4.0/legalcode",
+            "CC-BY-NC-4.0": "https://creativecommons.org/licenses/by-nc/4.0/legalcode",
+            "CC-BY-ND-4.0": "https://creativecommons.org/licenses/by-nd/4.0/legalcode",
+            "CC-BY-NC-SA-4.0": "https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode",
+            "CC-BY-NC-ND-4.0": "https://creativecommons.org/licenses/by-nc-nd/4.0/legalcode",
+            "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+            "MPL-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
+            "Unlicense": "https://unlicense.org/",
         }
-        
-        return license_urls.get(license_id.lower(), "https://spdx.org/licenses/" )
+
+        # Try exact match first, then lowercase lookup for backward compatibility
+        if license_id in license_urls:
+            return license_urls[license_id]
+
+        # Fallback to lowercase lookup
+        license_id_lower = license_id.lower()
+        for key, url in license_urls.items():
+            if key.lower() == license_id_lower:
+                return url
+
+        return f"https://spdx.org/licenses/{license_id}.html"
 
     def _fetch_with_retry(self, fetch_func, *args, max_retries=3, **kwargs):
         """Fetch data with retry logic for network failures."""
