@@ -1,7 +1,8 @@
 import json
+import logging
+import time
 import uuid
 import datetime
-import json
 from typing import Dict, Optional, Any, List
 
 from huggingface_hub import HfApi, ModelCard
@@ -9,21 +10,24 @@ from huggingface_hub.repocard_data import EvalResult
 from urllib.parse import urlparse
 from .utils import calculate_completeness_score
 
+# Module-level logger
+logger = logging.getLogger(__name__)
+
 # Import registry-aware enhanced extraction if available
 try:
     from .enhanced_extractor import EnhancedExtractor
     from .field_registry_manager import get_field_registry_manager
     ENHANCED_EXTRACTION_AVAILABLE = True
-    print("✅ Registry-aware enhanced extraction module loaded successfully")
+    logger.info("Registry-aware enhanced extraction module loaded successfully")
 except ImportError:
     try:
         from enhanced_extractor import EnhancedExtractor
         from field_registry_manager import get_field_registry_manager
         ENHANCED_EXTRACTION_AVAILABLE = True
-        print("✅ Registry-aware enhanced extraction module loaded successfully (direct import)")
+        logger.info("Registry-aware enhanced extraction module loaded successfully (direct import)")
     except ImportError:
         ENHANCED_EXTRACTION_AVAILABLE = False
-        print("⚠️ Registry-aware enhanced extraction not available, using basic extraction")
+        logger.warning("Registry-aware enhanced extraction not available, using basic extraction")
 
 
 class AIBOMGenerator:
@@ -50,9 +54,9 @@ class AIBOMGenerator:
         if ENHANCED_EXTRACTION_AVAILABLE:
             try:
                 self.registry_manager = get_field_registry_manager()
-                print("✅ Registry manager initialized for generator")
+                logger.info("Registry manager initialized for generator")
             except Exception as e:
-                print(f"⚠️ Could not initialize registry manager: {e}")
+                logger.warning("Could not initialize registry manager: %s", e)
                 self.registry_manager = None
 
     def get_extraction_results(self):
@@ -61,20 +65,18 @@ class AIBOMGenerator:
 
     def _setup_enhanced_logging(self):
         """Setup enhanced logging for extraction tracking"""
-        import logging
-        
         # Configure logging to show in HF Spaces
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             force=True  # Override any existing configuration
         )
-        
-        # Ensure logger shows up
-        logger = logging.getLogger('enhanced_extractor')
-        logger.setLevel(logging.INFO)
-        
-        print("🔧 Enhanced logging configured for AI SBOM generation")
+
+        # Ensure enhanced_extractor logger shows up
+        extractor_logger = logging.getLogger('enhanced_extractor')
+        extractor_logger.setLevel(logging.INFO)
+
+        logger.debug("Enhanced logging configured for AI SBOM generation")
     
     
     def generate_aibom(
@@ -95,54 +97,24 @@ class AIBOMGenerator:
             
             # Store original metadata before any AI enhancement
             original_metadata = self._extract_structured_metadata(model_id, model_info, model_card)
-            print(f"🔍 ENHANCED EXTRACTION DEBUG: Returned {len(original_metadata)} fields:")
+            logger.debug("Enhanced extraction returned %d fields", len(original_metadata))
             for key, value in original_metadata.items():
-                print(f"   {key}: {value}")
-            print(f"🔍 EXTRACTION RESULTS: {len(self.extraction_results) if hasattr(self, 'extraction_results') and self.extraction_results else 0} extraction results available")
-            
+                logger.debug("  %s: %s", key, value)
+            extraction_count = len(self.extraction_results) if hasattr(self, 'extraction_results') and self.extraction_results else 0
+            logger.debug("Extraction results available: %d", extraction_count)
+
             # Create initial AIBOM with original metadata
             original_aibom = self._create_aibom_structure(model_id, original_metadata)
 
-            print(f"🔍 AI SBOM CREATION DEBUG: Checking what made it into AIBOM:")
+            # Log AIBOM creation details at debug level
             if 'components' in original_aibom and original_aibom['components']:
                 component = original_aibom['components'][0]
                 if 'properties' in component:
-                    print(f"   Found {len(component['properties'])} properties in AIBOM:")
-                    for prop in component['properties']:
-                        print(f"      {prop.get('name')}: {prop.get('value')}")
+                    logger.debug("AIBOM contains %d properties", len(component['properties']))
                 else:
-                    print("   No properties found in component")
+                    logger.debug("No properties found in component")
             else:
-                print("   No components found in AI SBOM")
-                print(f"🔍 FIELD PRESERVATION VERIFICATION:")
-                print(f"   Enhanced extraction returned: {len(original_metadata)} fields")
-                
-                # Count fields in final AIBOM
-                aibom_field_count = 0
-                
-                # Count component properties
-                if 'components' in original_aibom and original_aibom['components']:
-                    component = original_aibom['components'][0]
-                    if 'properties' in component:
-                        aibom_field_count += len(component['properties'])
-                    
-                    # Count model card properties
-                    if 'modelCard' in component and 'properties' in component['modelCard']:
-                        aibom_field_count += len(component['modelCard']['properties'])
-                
-                # Count metadata properties
-                if 'metadata' in original_aibom and 'properties' in original_aibom['metadata']:
-                    aibom_field_count += len(original_aibom['metadata']['properties'])
-                
-                print(f"   Final AIBOM contains: {aibom_field_count} fields")
-                print(f"   Field preservation rate: {(aibom_field_count/len(original_metadata)*100):.1f}%")
-                
-                if aibom_field_count >= len(original_metadata) * 0.9:  # 90% or better
-                    print("✅ EXCELLENT: Field preservation successful!")
-                elif aibom_field_count >= len(original_metadata) * 0.7:  # 70% or better  
-                    print("⚠️ GOOD: Most fields preserved, some optimization possible")
-                else:
-                    print("❌ POOR: Significant field loss detected")
+                logger.warning("No components found in AIBOM for model_id=%s", model_id)
 
             
             # Calculate initial score with industry-neutral approach if enabled
@@ -171,10 +143,9 @@ class AIBOMGenerator:
                             if value is not None and (key not in final_metadata or not final_metadata[key]):
                                 final_metadata[key] = value
                 except Exception as e:
-                    print(f"Error during AI enhancement: {e}")
+                    logger.error("Error during AI enhancement: %s", e)
                     # Continue with original metadata if enhancement fails
-                    print("🚨 FALLBACK: Using _create_minimal_aibom due to error!")
-                    print(f"🚨 ERROR DETAILS: {str(e)}")
+                    logger.warning("Falling back to original metadata due to enhancement error")
             # Create final AIBOM with potentially enhanced metadata
             aibom = self._create_aibom_structure(model_id, final_metadata)
             
@@ -204,8 +175,8 @@ class AIBOMGenerator:
             # Return only the AIBOM to maintain compatibility with existing code
             return aibom
         except Exception as e:
-            print(f"Error generating AI SBOM: {e}")
-            # Return a minimal valid AI SBOM structure in case of error
+            logger.error("Error generating AIBOM for %s: %s", model_id, e)
+            # Return a minimal valid AIBOM structure in case of error
             return self._create_minimal_aibom(model_id)
 
     def _create_minimal_aibom(self, model_id: str) -> Dict[str, Any]:
@@ -259,7 +230,7 @@ class AIBOMGenerator:
         try:
             return self.hf_api.model_info(model_id)
         except Exception as e:
-            print(f"Error fetching model info for {model_id}: {e}")
+            logger.error("Error fetching model info for %s: %s", model_id, e)
             return {}
 
 
@@ -283,7 +254,7 @@ class AIBOMGenerator:
         try:
             return ModelCard.load(model_id)
         except Exception as e:
-            print(f"Error fetching model card for {model_id}: {e}")
+            logger.warning("Error fetching model card for %s: %s", model_id, e)
             return None
 
     def _create_aibom_structure(
@@ -291,23 +262,17 @@ class AIBOMGenerator:
         model_id: str,
         metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
-        # 🔍 CRASH DEBUG: troubleshoot where the process is crashing and falling back to minimal AIBOM
-        print(f"🔍 CRASH_DEBUG: _create_aibom_structure called")
-        print(f"🔍 CRASH_DEBUG: model_id = {model_id}")
-        print(f"🔍 CRASH_DEBUG: metadata type = {type(metadata)}")
-        print(f"🔍 CRASH_DEBUG: metadata keys = {list(metadata.keys()) if isinstance(metadata, dict) else 'NOT A DICT'}")
-        
+        logger.debug("Creating AIBOM structure for model_id=%s", model_id)
+        logger.debug("Metadata keys: %s", list(metadata.keys()) if isinstance(metadata, dict) else 'NOT A DICT')
+
         # Extract owner and model name from model_id
         parts = model_id.split("/")
         group = parts[0] if len(parts) > 1 else ""
         name = parts[1] if len(parts) > 1 else parts[0]
-        
+
         # Get version from metadata or use default
         version = metadata.get("commit", "1.0")
 
-        # 🔍 CRASH DEBUG: Check metadata before creating sections
-        print(f"🔍 CRASH_DEBUG: About to create metadata section")        
-        
         aibom = {
             "bomFormat": "CycloneDX",
             "specVersion": "1.6",
@@ -322,10 +287,7 @@ class AIBOMGenerator:
                 }
             ]
         }
-        
-        # 🔍 CRASH DEBUG: Check if we got this far
-        print(f"🔍 CRASH_DEBUG: Successfully created basic AIBOM structure")
-        
+
         # ALWAYS add root-level external references
         aibom["externalReferences"] = [{
             "type": "distribution",
@@ -334,11 +296,11 @@ class AIBOMGenerator:
 
         if metadata and "commit_url" in metadata:
             aibom["externalReferences"].append({
-                "type": "vcs", 
+                "type": "vcs",
                 "url": metadata["commit_url"]
-            } )
+            })
 
-        print(f"🔍 CRASH_DEBUG: _create_aibom_structure completed successfully")
+        logger.debug("AIBOM structure created successfully for %s", model_id)
         return aibom
 
     def _extract_structured_metadata(
@@ -351,41 +313,41 @@ class AIBOMGenerator:
         # Use registry-aware enhanced extraction if available
         if ENHANCED_EXTRACTION_AVAILABLE:
             try:
-                print(f"🚀 Using registry-aware enhanced extraction for: {model_id}")
-            
+                logger.info("Using registry-aware enhanced extraction for: %s", model_id)
+
                 # Create registry-aware enhanced extractor instance
                 extractor = EnhancedExtractor(self.hf_api, self.registry_manager)
-                
+
                 # Get both metadata and extraction results
                 metadata = extractor.extract_metadata(model_id, model_info, model_card)
-                
+
                 # Store extraction results for scoring
                 self.extraction_results = extractor.extraction_results
-                
+
                 # Log extraction summary
                 if extractor.registry_fields:
                     registry_field_count = len(extractor.registry_fields)
                     extracted_count = len([k for k, v in metadata.items() if v is not None])
                     extraction_results_count = len(extractor.extraction_results)
-                    
-                    print(f"✅ Registry-driven extraction completed:")
-                    print(f"   📋 Registry fields available: {registry_field_count}")
-                    print(f"   📊 Fields attempted: {extraction_results_count}")
-                    print(f"   ✅ Fields extracted: {extracted_count}")
-                    
+
+                    logger.info("Registry-driven extraction completed: %d/%d fields extracted",
+                               extracted_count, registry_field_count)
+                    logger.debug("Registry fields available: %d, Fields attempted: %d",
+                                registry_field_count, extraction_results_count)
+
                     # Log field coverage
                     if registry_field_count > 0:
                         coverage = (extracted_count / registry_field_count) * 100
-                        print(f"   📈 Registry field coverage: {coverage:.1f}%")
+                        logger.debug("Registry field coverage: %.1f%%", coverage)
                 else:
                     extracted_count = len([k for k, v in metadata.items() if v is not None])
-                    print(f"✅ Legacy extraction completed: {extracted_count} fields extracted")
-                
+                    logger.info("Legacy extraction completed: %d fields extracted", extracted_count)
+
                 return metadata
 
             except Exception as e:
-                print(f"❌ Registry-aware enhanced extraction failed: {e}")
-                print("🔄 Falling back to original extraction method")
+                logger.error("Registry-aware enhanced extraction failed: %s", e)
+                logger.warning("Falling back to original extraction method")
                 # Fall back to original extraction code here
         
         # ORIGINAL EXTRACTION METHOD (as fallback)
@@ -397,10 +359,10 @@ class AIBOMGenerator:
                 if not author or author.strip() == "":
                     parts = model_id.split("/")
                     author = parts[0] if len(parts) > 1 else "unknown"
-                    print(f"DEBUG: Fallback author used: {author}")
+                    logger.debug("Using fallback author: %s", author)
                 else:
-                    print(f"DEBUG: Author from model_info: {author}")
-    
+                    logger.debug("Author from model_info: %s", author)
+
                 metadata.update({
                     "name": getattr(model_info, "modelId", model_id).split("/")[-1],
                     "author": author,
@@ -409,10 +371,10 @@ class AIBOMGenerator:
                     "downloads": getattr(model_info, "downloads", 0),
                     "last_modified": getattr(model_info, "lastModified", None),
                     "commit": getattr(model_info, "sha", None)[:7] if getattr(model_info, "sha", None) else None,
-                    "commit_url": f"https://huggingface.co/{model_id}/commit/{model_info.sha}" if getattr(model_info, "sha", None ) else None,
+                    "commit_url": f"https://huggingface.co/{model_id}/commit/{model_info.sha}" if getattr(model_info, "sha", None) else None,
                 })
             except Exception as e:
-                print(f"Error extracting model info metadata: {e}")
+                logger.error("Error extracting model info metadata: %s", e)
     
         if model_card and hasattr(model_card, "data") and model_card.data:
             try:
@@ -430,7 +392,7 @@ class AIBOMGenerator:
                 if hasattr(model_card.data, "eval_results") and model_card.data.eval_results:
                     metadata["eval_results"] = model_card.data.eval_results
             except Exception as e:
-                print(f"Error extracting model card metadata: {e}")
+                logger.error("Error extracting model card metadata: %s", e)
     
         metadata["ai:type"] = "Transformer"
         metadata["ai:task"] = metadata.get("pipeline_tag", "Text Generation")
@@ -445,11 +407,11 @@ class AIBOMGenerator:
     
         metadata["suppliedBy"] = metadata.get("author", "unknown")
         metadata["typeOfModel"] = metadata.get("ai:type", "Transformer")
-    
-        print(f"DEBUG: Final metadata['author'] = {metadata.get('author')}")
-        print(f"DEBUG: Adding primaryPurpose = {metadata.get('ai:task', 'Text Generation')}")
-        print(f"DEBUG: Adding suppliedBy = {metadata.get('suppliedBy')}")
-    
+
+        logger.debug("Final metadata: author=%s, primaryPurpose=%s, suppliedBy=%s",
+                    metadata.get('author'), metadata.get('ai:task', 'Text Generation'),
+                    metadata.get('suppliedBy'))
+
         return {k: v for k, v in metadata.items() if v is not None}
 
     
@@ -463,8 +425,7 @@ class AIBOMGenerator:
         
 
     def _create_metadata_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        print(f"🔍 CRASH_DEBUG: _create_metadata_section called")
-        print(f"🔍 CRASH_DEBUG: metadata type in metadata_section = {type(metadata)}")
+        logger.debug("Creating metadata section for %s", model_id)
         
         timestamp = datetime.datetime.utcnow().isoformat() + "Z"
         
@@ -542,9 +503,6 @@ class AIBOMGenerator:
                           "downloads", "last_modified", "commit_url", "ai:type", "ai:task", 
                           "ai:framework", "eval_results"]
         
-        print(f"🔍 CRASH_DEBUG: About to call .items() on metadata")
-        print(f"🔍 CRASH_DEBUG: metadata type before .items() = {type(metadata)}")
-        
         for key, value in metadata.items():
             # Skip component fields and eval_results (handled separately in the model card)
             if key not in (component_fields + ["eval_results"]) and value is not None:
@@ -558,9 +516,9 @@ class AIBOMGenerator:
                             value = json.dumps(value)
                     elif isinstance(value, dict):
                         value = json.dumps(value)
-                
+
                 properties.append({"name": key, "value": str(value)})
-                print(f"✅ METADATA: Added {key} = {value} to properties")
+                logger.debug("Added metadata property: %s", key)
 
         # Assemble metadata section
         metadata_section = {
@@ -573,8 +531,7 @@ class AIBOMGenerator:
         return metadata_section
 
     def _create_component_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        print(f"🔍 CRASH_DEBUG: _create_component_section called")
-        print(f"🔍 CRASH_DEBUG: metadata type in component_section = {type(metadata)}")
+        logger.debug("Creating component section for %s", model_id)
         
         # Extract owner and model name from model_id
         parts = model_id.split("/")
@@ -604,10 +561,10 @@ class AIBOMGenerator:
         license_value = None
         if metadata and "licenses" in metadata and metadata["licenses"]:
             license_value = metadata["licenses"]
-            print(f"✅ COMPONENT: Found licenses = {license_value}")
+            logger.debug("Found licenses: %s", license_value)
         elif metadata and "license" in metadata and metadata["license"]:
             license_value = metadata["license"]
-            print(f"✅ COMPONENT: Found license = {license_value}")
+            logger.debug("Found license: %s", license_value)
 
         if license_value:
             component["licenses"] = [{
@@ -616,7 +573,6 @@ class AIBOMGenerator:
                     "url": self._get_license_url(license_value)
                 }
             }]
-            print(f"✅ COMPONENT: Added license = {license_value}")
         else:
             component["licenses"] = [{
                 "license": {
@@ -624,36 +580,32 @@ class AIBOMGenerator:
                     "url": "https://spdx.org/licenses/"
                 }
             }]
-            print(f"⚠️ COMPONENT: No license found, using NOASSERTION")
-            
+            logger.debug("No license found, using NOASSERTION")
+
         # ALWAYS add description
         component["description"] = metadata.get("description", f"AI model {model_id}")
-        
-        # Add enhanced technical properties to component 
-        technical_properties = [] 
 
-        # Add model type information 
-        if "model_type" in metadata: 
-            technical_properties.append({"name": "model_type", "value": str(metadata["model_type"])}) 
-            print(f"✅ COMPONENT: Added model_type = {metadata['model_type']}") 
+        # Add enhanced technical properties to component
+        technical_properties = []
 
-        # Add tokenizer information 
-        if "tokenizer_class" in metadata: 
-            technical_properties.append({"name": "tokenizer_class", "value": str(metadata["tokenizer_class"])}) 
-            print(f"✅ COMPONENT: Added tokenizer_class = {metadata['tokenizer_class']}") 
+        # Add model type information
+        if "model_type" in metadata:
+            technical_properties.append({"name": "model_type", "value": str(metadata["model_type"])})
 
-        # Add architecture information 
-        if "architectures" in metadata: 
-            arch_value = metadata["architectures"] 
-            if isinstance(arch_value, list): 
-                arch_value = ", ".join(arch_value) 
-            technical_properties.append({"name": "architectures", "value": str(arch_value)}) 
-            print(f"✅ COMPONENT: Added architectures = {arch_value}") 
+        # Add tokenizer information
+        if "tokenizer_class" in metadata:
+            technical_properties.append({"name": "tokenizer_class", "value": str(metadata["tokenizer_class"])})
 
-        # Add library information 
-        if "library_name" in metadata: 
+        # Add architecture information
+        if "architectures" in metadata:
+            arch_value = metadata["architectures"]
+            if isinstance(arch_value, list):
+                arch_value = ", ".join(arch_value)
+            technical_properties.append({"name": "architectures", "value": str(arch_value)})
+
+        # Add library information
+        if "library_name" in metadata:
             technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])}) 
-            print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}") 
 
         # Add technical properties to component if any exist 
         if technical_properties: 
@@ -702,11 +654,10 @@ class AIBOMGenerator:
 
         
     def _create_model_card_section(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        print(f"🔍 CRASH_DEBUG: _create_model_card_section called")
-        print(f"🔍 CRASH_DEBUG: metadata type in model_card_section = {type(metadata)}")
-        
+        logger.debug("Creating model card section")
+
         model_card_section = {}
-        
+
         # Add quantitative analysis section
         if "eval_results" in metadata:
             model_card_section["quantitativeAnalysis"] = {
@@ -715,22 +666,13 @@ class AIBOMGenerator:
             }
         else:
             model_card_section["quantitativeAnalysis"] = {"graphics": {}}
-        
+
         # Add properties section with enhanced extraction fields
         properties = []
-        
+
         # Component-level fields that shouldn't be duplicated in model card
         component_level_fields = ["name", "author", "license", "description", "commit"]
-        
-        # DEBUG: troubleshooting AIBOM generation
-        print(f"🔍 DEBUG: About to iterate metadata.items()")
-        print(f"🔍 DEBUG: metadata type = {type(metadata)}")
-        if isinstance(metadata, dict):
-            print(f"🔍 DEBUG: metadata keys = {list(metadata.keys())}")
-        else:
-            print(f"🔍 DEBUG: metadata value = {metadata}")
-            print(f"🔍 DEBUG: This is the problem - metadata should be a dict!")
-                
+
         # Add all enhanced extraction fields to model card properties
         try:
             for key, value in metadata.items():
@@ -745,18 +687,15 @@ class AIBOMGenerator:
                                 value = json.dumps(value)
                         elif isinstance(value, dict):
                             value = json.dumps(value)
-                    
+
                     properties.append({"name": key, "value": str(value)})
-                    print(f"✅ MODEL_CARD: Added {key} = {value}")
         except AttributeError as e:
-            print(f"❌ FOUND THE ERROR: {e}")
-            print(f"❌ metadata type: {type(metadata)}")
-            print(f"❌ metadata value: {metadata}")
+            logger.error("Error iterating metadata: %s (type: %s)", e, type(metadata))
             raise e
-        
+
         # Always include properties section (even if empty for consistency)
         model_card_section["properties"] = properties
-        print(f"✅ MODEL_CARD: Added {len(properties)} properties to model card")
+        logger.debug("Added %d properties to model card", len(properties))
         
         # Create model parameters section
         model_parameters = {}
@@ -820,7 +759,7 @@ class AIBOMGenerator:
             
             # Add to model parameters
             model_parameters.update(technical_details)
-            print(f"✅ MODEL_CARD: Added technical details: {list(technical_details.keys())}")
+            logger.debug("Added technical details: %s", list(technical_details.keys()))
         
         # Update model parameters with enhanced details
         model_card_section["modelParameters"] = model_parameters
@@ -852,7 +791,7 @@ class AIBOMGenerator:
             "mpl-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
         }
         
-        return license_urls.get(license_id.lower(), "https://spdx.org/licenses/" )
+        return license_urls.get(license_id.lower(), "https://spdx.org/licenses/")
 
     def _fetch_with_retry(self, fetch_func, *args, max_retries=3, **kwargs):
         """Fetch data with retry logic for network failures."""
@@ -861,7 +800,7 @@ class AIBOMGenerator:
                 return fetch_func(*args, **kwargs)
             except Exception as e:
                 if attempt == max_retries - 1:
-                    logger.warning(f"Failed to fetch after {max_retries} attempts: {e}")
+                    logger.warning("Failed to fetch after %d attempts: %s", max_retries, e)
                     return None
                 time.sleep(1 * (attempt + 1))  # Exponential backoff
         return None
@@ -888,22 +827,22 @@ class AIBOMGenerator:
                 
                 if len(registry_fields) > 0:
                     validation_results['validation_status'] = 'success'
-                    print(f"✅ Registry validation successful: {len(registry_fields)} fields loaded")
-                    
+                    logger.info("Registry validation successful: %d fields loaded", len(registry_fields))
+
                     # Log sample fields
                     sample_fields = list(registry_fields.keys())[:5]
-                    print(f"📋 Sample registry fields: {', '.join(sample_fields)}")
+                    logger.debug("Sample registry fields: %s", ', '.join(sample_fields))
                 else:
                     validation_results['validation_status'] = 'no_fields'
-                    print("⚠️ Registry loaded but no fields found")
+                    logger.warning("Registry loaded but no fields found")
             else:
                 validation_results['validation_status'] = 'no_registry_manager'
-                print("❌ Registry manager not available")
-                
+                logger.warning("Registry manager not available")
+
         except Exception as e:
             validation_results['validation_status'] = 'error'
             validation_results['error'] = str(e)
-            print(f"❌ Registry validation failed: {e}")
+            logger.error("Registry validation failed: %s", e)
         
         return validation_results
 
@@ -912,64 +851,56 @@ def test_registry_integration():
     Test function to validate registry integration is working correctly.
     This function can be called to debug registry-related issues.
     """
-    print("🧪 Testing Registry Integration...")
-    print("=" * 50)
-    
+    logger.info("Testing Registry Integration...")
+
     try:
         # Test generator initialization
         generator = AIBOMGenerator()
-        
+
         # Validate registry integration
         validation_results = generator.validate_registry_integration()
-        
-        print("📊 Validation Results:")
-        for key, value in validation_results.items():
-            print(f"   {key}: {value}")
-        
+
+        logger.info("Validation Results: %s", validation_results)
+
         # Test with a sample model
         test_model = "deepseek-ai/DeepSeek-R1"
-        print(f"\n🔍 Testing extraction with model: {test_model}")
-        
+        logger.info("Testing extraction with model: %s", test_model)
+
         try:
             # Test model info retrieval
             model_info = generator.hf_api.model_info(test_model)
             model_card = ModelCard.load(test_model)
-            
+
             # Test extraction
             if ENHANCED_EXTRACTION_AVAILABLE and generator.registry_manager:
                 extractor = EnhancedExtractor(generator.hf_api, generator.registry_manager)
                 metadata = extractor.extract_metadata(test_model, model_info, model_card)
-                
-                print(f"✅ Test extraction successful: {len(metadata)} fields extracted")
-                
+
+                logger.info("Test extraction successful: %d fields extracted", len(metadata))
+
                 # Show sample extracted fields
                 sample_fields = dict(list(metadata.items())[:5])
-                print("📋 Sample extracted fields:")
-                for key, value in sample_fields.items():
-                    print(f"   {key}: {value}")
-                
+                logger.debug("Sample extracted fields: %s", sample_fields)
+
                 # Show extraction results summary
                 extraction_results = extractor.get_extraction_results()
                 confidence_counts = {}
                 for result in extraction_results.values():
                     conf = result.confidence.value
                     confidence_counts[conf] = confidence_counts.get(conf, 0) + 1
-                
-                print("📈 Extraction confidence distribution:")
-                for conf, count in confidence_counts.items():
-                    print(f"   {conf}: {count} fields")
-                    
-            else:
-                print("⚠️ Registry-aware extraction not available for testing")
-                
-        except Exception as e:
-            print(f"❌ Test extraction failed: {e}")
-        
-    except Exception as e:
-        print(f"❌ Registry integration test failed: {e}")
-    
-    print("=" * 50)
-    print("🧪 Registry Integration Test Complete")
 
-# Uncomment this line to run the test automatically when generator.py is imported
-test_registry_integration()
+                logger.info("Extraction confidence distribution: %s", confidence_counts)
+
+            else:
+                logger.warning("Registry-aware extraction not available for testing")
+
+        except Exception as e:
+            logger.error("Test extraction failed: %s", e)
+
+    except Exception as e:
+        logger.error("Registry integration test failed: %s", e)
+
+    logger.info("Registry Integration Test Complete")
+
+# Uncomment this line to run the test when generator.py is run directly
+# test_registry_integration()
