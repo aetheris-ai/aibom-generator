@@ -239,15 +239,15 @@ class AIBOMGenerator:
                 }
             },
             "components": [{
-                "bom-ref": f"pkg:huggingface/{model_id.replace('/', '/')}@1.0",
+                "bom-ref": f"pkg:huggingface/{model_id.replace('/', '%2F')}@1.0",
                 "type": "machine-learning-model",
                 "name": model_id.split("/")[-1],
                 "version": "1.0",
-                "purl": f"pkg:huggingface/{model_id.replace('/', '/')}@1.0"
+                "purl": f"pkg:huggingface/{model_id.replace('/', '%2F')}@1.0"
             }],
             "dependencies": [{
                 "ref": f"pkg:generic/{model_id.replace('/', '%2F')}@1.0",
-                "dependsOn": [f"pkg:huggingface/{model_id.replace('/', '/')}@1.0"]
+                "dependsOn": [f"pkg:huggingface/{model_id.replace('/', '%2F')}@1.0"]
             }]
         }
 
@@ -318,7 +318,7 @@ class AIBOMGenerator:
             "dependencies": [
                 {
                     "ref": f"pkg:generic/{model_id.replace('/', '%2F')}@{version}",
-                    "dependsOn": [f"pkg:huggingface/{model_id.replace('/', '/')}@{version}"]
+                    "dependsOn": [f"pkg:huggingface/{model_id.replace('/', '%2F')}@{version}"]
                 }
             ]
         }
@@ -585,14 +585,14 @@ class AIBOMGenerator:
         version = metadata.get("commit", "1.0")
         
         # Create PURL with version information if commit is available
-        purl = f"pkg:huggingface/{model_id.replace('/', '/')}"
+        purl = f"pkg:huggingface/{model_id.replace('/', '%2F')}"
         if "commit" in metadata:
             purl = f"{purl}@{metadata['commit']}"
         else:
             purl = f"{purl}@{version}"
             
         component = {
-            "bom-ref": f"pkg:huggingface/{model_id.replace('/', '/')}@{version}",
+            "bom-ref": f"pkg:huggingface/{model_id.replace('/', '%2F')}@{version}",
             "type": "machine-learning-model",
             "group": group,
             "name": name,
