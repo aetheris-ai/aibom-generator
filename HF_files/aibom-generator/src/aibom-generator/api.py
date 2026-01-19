@@ -583,39 +583,41 @@ async def generate_form(
         )
         
     sbom_count = get_sbom_count() # Get count early for context
-    
-    # --- Input Sanitization --- 
-    sanitized_model_id = html.escape(model_id)
-    
-    # --- Input Format Validation --- 
-    if not is_valid_hf_input(sanitized_model_id):
+
+    # --- Input Format Validation (BEFORE sanitization for security) ---
+    if not is_valid_hf_input(model_id):
         error_message = "Invalid input format. Please provide a valid Hugging Face model ID (e.g., 'owner/model') or a full model URL (e.g., 'https://huggingface.co/owner/model') ."
         logger.warning(f"Invalid model input format received: {model_id}") # Log original input
-        # Try to display sanitized input in error message
+        # Sanitize for safe display in error response
+        sanitized_for_display = html.escape(model_id)
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_model_id}
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
-        
-    # --- Normalize the SANITIZED and VALIDATED model ID --- 
-    normalized_model_id = _normalise_model_id(sanitized_model_id)
-    
-    # --- Check if the ID corresponds to an actual HF Model --- 
+
+    # --- Normalize the VALIDATED model ID (use raw input, not HTML-escaped) ---
+    # Normalization needs to parse URLs which contain special chars like / and :
+    normalized_model_id = _normalise_model_id(model_id)
+
+    # --- Check if the ID corresponds to an actual HF Model ---
     try:
         hf_api = HfApi()
         logger.info(f"Attempting to fetch model info for: {normalized_model_id}")
         model_info = hf_api.model_info(normalized_model_id)
         logger.info(f"Successfully fetched model info for: {normalized_model_id}")
     except RepositoryNotFoundError:
-        error_message = f"Error: The provided ID \"{normalized_model_id}\" could not be found on Hugging Face or does not correspond to a model repository."
+        # Sanitize for safe HTML display in template
+        sanitized_for_display = html.escape(normalized_model_id)
+        error_message = f"Error: The provided ID \"{sanitized_for_display}\" could not be found on Hugging Face or does not correspond to a model repository."
         logger.warning(f"Repository not found for ID: {normalized_model_id}")
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": normalized_model_id}
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
-    except Exception as api_err: # Catch other potential API errors
+    except Exception as api_err:  # Catch other potential API errors
+        sanitized_for_display = html.escape(normalized_model_id)
         error_message = f"Error verifying model ID with Hugging Face API: {str(api_err)}"
         logger.error(f"HF API error for {normalized_model_id}: {str(api_err)}")
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": normalized_model_id}
+            "error.html", {"request": request, "error": error_message, "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
     # --- End Model Existence Check ---
 
@@ -800,12 +802,13 @@ async def generate_form(
         else:
             print("  completeness_score: IS NONE!")
         
-        # Render the template with all necessary data, with normalized model ID
+        # Render the template with all necessary data, with sanitized model ID for display
+        sanitized_for_display = html.escape(normalized_model_id)
         return templates.TemplateResponse(
             "result.html",
             {
                 "request": request,
-                "model_id": normalized_model_id,
+                "model_id": sanitized_for_display,
                 "aibom": aibom,
                 "enhancement_report": enhancement_report,
                 "completeness_score": completeness_score,
@@ -820,13 +823,14 @@ async def generate_form(
                 "weights": weights
             }
         )
-    # --- Main Exception Handling --- 
+    # --- Main Exception Handling ---
     except Exception as e:
         logger.error(f"Error generating AI SBOM: {str(e)}")
-        sbom_count = get_sbom_count() # Refresh count just in case
-        # Pass count, added normalized model ID
+        sbom_count = get_sbom_count()  # Refresh count just in case
+        # Sanitize model ID for safe HTML display
+        sanitized_for_display = html.escape(normalized_model_id)
         return templates.TemplateResponse(
-            "error.html", {"request": request, "error": str(e), "sbom_count": sbom_count, "model_id": normalized_model_id}
+            "error.html", {"request": request, "error": str(e), "sbom_count": sbom_count, "model_id": sanitized_for_display}
         )
 
 @app.get("/download/{filename}")
@@ -857,15 +861,19 @@ class GenerateRequest(BaseModel):
 async def api_generate_aibom(request: GenerateRequest):
     """
     Generate an AI SBOM for a specified Hugging Face model.
-    
+
     This endpoint accepts JSON input and returns JSON output.
     """
     try:
-        # Sanitize and validate input
-        sanitized_model_id = html.escape(request.model_id)
-        if not is_valid_hf_input(sanitized_model_id):
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
+        if not is_valid_hf_input(request.model_id):
+            sanitized_for_display = html.escape(request.model_id)
+            logger.warning(f"Invalid model input format received: {sanitized_for_display}")
             raise HTTPException(status_code=400, detail="Invalid model ID format")
-            
+
+        # Only sanitize AFTER validation passes (for safe display/logging)
+        sanitized_model_id = html.escape(request.model_id)
         normalized_model_id = _normalise_model_id(sanitized_model_id)
         
         # Verify model exists
@@ -935,11 +943,15 @@ async def api_generate_with_report(request: GenerateRequest):
     This endpoint accepts JSON input and returns JSON output with completeness score.
     """
     try:
-        # Sanitize and validate input
-        sanitized_model_id = html.escape(request.model_id)
-        if not is_valid_hf_input(sanitized_model_id):
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
+        if not is_valid_hf_input(request.model_id):
+            sanitized_for_display = html.escape(request.model_id)
+            logger.warning(f"Invalid model input format received: {sanitized_for_display}")
             raise HTTPException(status_code=400, detail="Invalid model ID format")
-            
+
+        # Only sanitize AFTER validation passes (for safe display/logging)
+        sanitized_model_id = html.escape(request.model_id)
         normalized_model_id = _normalise_model_id(sanitized_model_id)
         
         # Verify model exists
@@ -1037,7 +1049,7 @@ async def api_generate_with_report(request: GenerateRequest):
         raise HTTPException(status_code=500, detail=f"Error generating AI SBOM: {str(e)}")
 
 
-@app.get("/api/models/{model_id:path}/score" )
+@app.get("/api/models/{model_id:path}/score")
 async def get_model_score(
     model_id: str,
     hf_token: Optional[str] = None,
@@ -1047,11 +1059,15 @@ async def get_model_score(
     Get the completeness score for a model without generating a full AIBOM.
     """
     try:
-        # Sanitize and validate input
-        sanitized_model_id = html.escape(model_id)
-        if not is_valid_hf_input(sanitized_model_id):
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
+        if not is_valid_hf_input(model_id):
+            sanitized_for_display = html.escape(model_id)
+            logger.warning(f"Invalid model input format received: {sanitized_for_display}")
             raise HTTPException(status_code=400, detail="Invalid model ID format")
-            
+
+        # Only sanitize AFTER validation passes (for safe display/logging)
+        sanitized_model_id = html.escape(model_id)
         normalized_model_id = _normalise_model_id(sanitized_model_id)
         
         # Verify model exists
@@ -1129,14 +1145,17 @@ async def batch_generate(request: BatchRequest):
     Start a batch job to generate AIBOMs for multiple models.
     """
     try:
-        # Validate model IDs
+        # SECURITY: Validate raw input FIRST, before any sanitization
+        # This prevents bypass scenarios where sanitized input might slip through
         valid_model_ids = []
         for model_id in request.model_ids:
-            sanitized_id = html.escape(model_id)
-            if is_valid_hf_input(sanitized_id):
+            if is_valid_hf_input(model_id):
+                # Only sanitize AFTER validation passes
+                sanitized_id = html.escape(model_id)
                 valid_model_ids.append(sanitized_id)
             else:
-                logger.warning(f"Skipping invalid model ID: {model_id}")
+                sanitized_for_display = html.escape(model_id)
+                logger.warning(f"Skipping invalid model ID: {sanitized_for_display}")
         
         if not valid_model_ids:
             raise HTTPException(status_code=400, detail="No valid model IDs provided")
