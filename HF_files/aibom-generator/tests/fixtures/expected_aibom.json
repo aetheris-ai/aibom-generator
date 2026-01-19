@@ -1,0 +1,96 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:test-uuid-placeholder",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2024-01-01T00:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "bom-ref": "pkg:generic/owasp-genai/owasp-aibom-generator@1.0.0",
+          "type": "application",
+          "name": "OWASP AIBOM Generator",
+          "version": "1.0.0",
+          "manufacturer": {
+            "name": "OWASP GenAI Security Project"
+          }
+        }
+      ]
+    },
+    "component": {
+      "bom-ref": "pkg:generic/test-org%2Ftest-model@1.0",
+      "type": "application",
+      "name": "test-model",
+      "description": "Test model for unit testing",
+      "version": "1.0",
+      "purl": "pkg:generic/test-org%2Ftest-model@1.0",
+      "copyright": "NOASSERTION"
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "pkg:huggingface/test-org%2Ftest-model@1.0",
+      "type": "machine-learning-model",
+      "group": "test-org",
+      "name": "test-model",
+      "version": "1.0",
+      "purl": "pkg:huggingface/test-org%2Ftest-model@1.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "apache-2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
+          }
+        }
+      ],
+      "description": "Test model for unit testing",
+      "externalReferences": [
+        {
+          "type": "website",
+          "url": "https://huggingface.co/test-org/test-model"
+        }
+      ],
+      "authors": [
+        {
+          "name": "test-org"
+        }
+      ],
+      "publisher": "test-org",
+      "supplier": {
+        "name": "test-org",
+        "url": ["https://huggingface.co/test-org"]
+      },
+      "manufacturer": {
+        "name": "test-org",
+        "url": ["https://huggingface.co/test-org"]
+      },
+      "copyright": "NOASSERTION",
+      "modelCard": {
+        "modelParameters": {
+          "task": "text-generation",
+          "architectureFamily": "transformer",
+          "modelArchitecture": "LlamaForCausalLM",
+          "inputs": [{"format": "text"}],
+          "outputs": [{"format": "generated-text"}]
+        },
+        "properties": [
+          {"name": "primaryPurpose", "value": "text-generation"},
+          {"name": "typeOfModel", "value": "transformer"}
+        ]
+      }
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:generic/test-org%2Ftest-model@1.0",
+      "dependsOn": ["pkg:huggingface/test-org%2Ftest-model@1.0"]
+    }
+  ],
+  "externalReferences": [
+    {
+      "type": "distribution",
+      "url": "https://huggingface.co/test-org/test-model"
+    }
+  ]
+}
