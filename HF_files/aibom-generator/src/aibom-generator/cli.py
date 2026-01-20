@@ -71,7 +71,13 @@ def parse_args():
         help="Pretty-print the output",
         action="store_true"
     )
-    
+
+    parser.add_argument(
+        "--template-attestation",
+        help="Path to JSON file containing external security attestation for chat template",
+        default=None
+    )
+
     return parser.parse_args()
 
 
@@ -93,10 +99,20 @@ def main():
     )
     
     try:
+        template_attestation = None
+        if args.template_attestation:
+            try:
+                with open(args.template_attestation, 'r') as f:
+                    template_attestation = json.load(f)
+                print(f"Loaded template attestation from: {args.template_attestation}")
+            except Exception as e:
+                print(f"Warning: Could not load template attestation file: {e}", file=sys.stderr)
+
         # Generate the AIBOM
         aibom = generator.generate_aibom(
             model_id=args.model_id,
-            output_file=None  # We'll handle saving ourselves
+            output_file=None,
+            template_attestation=template_attestation
         )
         
         # Calculate completeness score (placeholder for now)

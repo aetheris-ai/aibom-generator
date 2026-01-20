@@ -19,7 +19,7 @@
 
 ## Overview
 
-This document provides a comprehensive mapping of all 29 fields used in the AI SBOM Generator, organized by category to match the UI structure. Each field includes its CycloneDX 1.6 location, scoring weight, tier classification, and description. SPDX 3.0 compatibility information is included for reference.
+This document provides a comprehensive mapping of all 35 fields used in the AI SBOM Generator, organized by category to match the UI structure. Each field includes its CycloneDX 1.6 location, scoring weight, tier classification, and description. SPDX 3.0 compatibility information is included for reference.
 
 The AI SBOM Generator uses a configurable field registry to extract, validate, and score AI model documentation across multiple sources, providing comprehensive Bill of Materials for AI systems.
 
@@ -108,8 +108,14 @@ Advanced AI model documentation fields that provide detailed information about m
 | 26 | **metricDecisionThreshold** | `$.components[0].modelCard.properties[name="metricDecisionThreshold"]` | `ai_metricDecisionThreshold` | S | 🎯 | 1.0 | Decision thresholds for model outputs |
 | 27 | **modelDataPreprocessing** | `$.components[0].modelCard.properties[name="modelDataPreprocessing"]` | `ai_modelDataPreprocessing` | S | 🎯 | 1.0 | Data preprocessing and preparation steps |
 | 28 | **useSensitivePersonalInformation** | `$.components[0].modelCard.properties[name="useSensitivePersonalInformation"]` | `ai_useSensitivePersonalInformation` | S | 🎯 | 1.0 | Information about sensitive data usage |
+| 29 | **chat_template** | `$.components[0].modelCard.properties[name="chat_template"]` | - | - | 🔄 | - | Full Jinja template string (opt-in content, not scored - hash is sufficient) |
+| 30 | **chat_template_hash** | `$.components[0].modelCard.properties[name="chat_template_hash"]` | - | I | 🔄 | 2.5 | SHA-256 hash of chat template for integrity verification |
+| 31 | **template_source** | `$.components[0].modelCard.properties[name="template_source"]` | - | S | 🔄 | 1.0 | Where/when/how the template was extracted |
+| 32 | **model_lineage** | `$.components[0].modelCard.properties[name="model_lineage"]` | - | S | 🔄 | 1.0 | Template inheritance and derivation tracking |
+| 33 | **template_security_status** | `$.components[0].modelCard.properties[name="template_security_status"]` | - | I | 🔄 | 2.0 | Security attestation with scanner details and findings |
+| 34 | **named_chat_templates** | `$.components[0].modelCard.properties[name="named_chat_templates"]` | - | S | 🔄 | 1.0 | Hashes for named templates (tool_use, rag, etc.) |
 
-**Category Result:** 14/14 fields • **30.0/30 points** • **100% weight**
+**Category Result:** 19/20 fields scored • **37.5/37.5 points** • **100% weight**
 
 ---
 
@@ -119,7 +125,7 @@ Links and distribution information that provide access to the model and related 
 
 | # | Field Name | CycloneDX Location | SPDX 3.0 Equivalent | Tier | AS | Points | Description |
 |---|------------|-------------------|---------------------|------|--------|--------|-------------|
-| 29 | **downloadLocation** | `$.externalReferences[type="distribution"]` | `downloadLocation` | C | ✅ | 10.0 | Primary location to download the model |
+| 35 | **downloadLocation** | `$.externalReferences[type="distribution"]` | `downloadLocation` | C | ✅ | 10.0 | Primary location to download the model |
 
 **Category Result:** 1/1 fields • **10.0/10 points** • **100% weight**
 
@@ -131,74 +137,57 @@ The AI SBOM Generator uses a weighted scoring system to assess documentation com
 
 | Category | Fields | Max Points | Weight | Description |
 |----------|--------|------------|--------|-------------|
-| **Required Fields** | 4 | 20.0 | 20% | Essential CycloneDX infrastructure |
-| **Metadata** | 5 | 20.0 | 20% | AI-specific metadata and provenance |
-| **Component Basic** | 5 | 20.0 | 20% | Core component identification |
-| **Component Model Card** | 14 | 30.0 | 30% | Advanced AI model documentation |
-| **External References** | 1 | 10.0 | 10% | Distribution and reference links |
-| **TOTAL** | **29** | **100.0** | **100%** | Maximum possible completeness score |
+| **Required Fields** | 4 | 20.0 | 19% | Essential CycloneDX infrastructure |
+| **Metadata** | 5 | 20.0 | 19% | AI-specific metadata and provenance |
+| **Component Basic** | 5 | 20.0 | 19% | Core component identification |
+| **Component Model Card** | 19 | 37.5 | 35% | Advanced AI model documentation |
+| **External References** | 1 | 10.0 | 9% | Distribution and reference links |
+| **TOTAL** | **34** | **107.5** | **100%** | Maximum possible completeness score |
 
 ### Tier Impact on Scoring
 - **Critical fields** (C) have 3x weight multiplier and significantly impact scoring
-- **Important fields** (I) have 2x weight multiplier and enhance documentation quality  
+- **Important fields** (I) have 2x weight multiplier and enhance documentation quality
 - **Supplementary fields** (S) have 1x weight multiplier and provide additional context
+
+---
+
+## Chat Template Integrity Fields
+
+Chat templates are Jinja2 templates that format conversations before inference. Poisoned templates can influence model completions while bypassing weight-based scanning, making them a security-relevant attack surface.
+
+Fields #29-34 track chat template integrity:
+- **chat_template_hash**: SHA-256 hash (`sha256:...`) for integrity verification
+- **template_source**: Source file, repository, timestamp, and extractor tool
+- **template_security_status**: Security attestation (defaults to `"unscanned"`; external scanners can provide attestations via `--template-attestation`)
+- **named_chat_templates**: Hash map for models with multiple templates (e.g., `tool_use`, `rag`)
+
+For GGUF files, templates are extracted via header-only HTTP range requests without downloading full weights.
 
 ---
 
 ## Field Extraction Strategies
 
-The AI SBOM Generator employs a multi-strategy extraction approach for each field, attempting extraction in the following priority order:
+Extraction is attempted in priority order:
 
-1. **HuggingFace API** → Direct metadata extraction (High confidence)
-2. **Model Card** → Structured documentation parsing (Medium-high confidence)  
-3. **Config Files** → Technical details from JSON files (High confidence)
-4. **Text Patterns** → Regex extraction from README (Medium confidence)
-5. **Intelligent Inference** → Smart defaults from context (Medium confidence)
-6. **Fallback Values** → Placeholders when no data available (Low/no confidence)
-
-This multi-strategy approach ensures maximum field coverage while maintaining confidence scoring for each extracted value.
+1. **HuggingFace API** (High confidence)
+2. **Model Card YAML** (High confidence)
+3. **Config Files** (High confidence)
+4. **GGUF Metadata** (High confidence)
+5. **Text Patterns** (Medium confidence)
+6. **Intelligent Inference** (Medium confidence)
+7. **Fallback Values** (Low confidence)
 
 ---
 
 ## Standards Compatibility
 
-### CycloneDX 1.6 (Primary Format)
-- **Primary structure** follows CycloneDX 1.6 specification
-- **Model Card extension** provides AI-specific documentation
-- **Properties mechanism** allows flexible field addition
-- **JSON Schema validation** ensures structural compliance
-
-### SPDX 3.0 AI Profile (Reference Compatibility)
-- **100% field coverage** with official SPDX 3.0 AI Profile specification
-- **17/29 fields (59%)** have exact field name matches
-- **Compatible data types** aligned with SPDX type system
-- **Future dual-format support** enables SPDX 3.0 output
-
-### Interoperability
-- **Standards-compliant output** can be converted between formats
-- **AI field preservation** maintains semantic meaning across standards
-- **Tool compatibility** with both CycloneDX and SPDX ecosystems
+- **CycloneDX 1.6**: Primary output format with Model Card extension for AI fields
+- **SPDX 3.0 AI Profile**: 17/35 fields have exact name matches; all fields semantically compatible
 
 ---
 
 ## Usage Notes
 
-### Configuration and Customization
-- **Registry-driven extraction**: All fields are configurable via JSON registry
-- **Scoring weights**: Adjustable per field and category
-- **Tier assignments**: Customizable based on use case requirements
-- **Extraction strategies**: Configurable priority and methods
-
-### Field Addition and Modification
-- **New fields**: Can be added to registry without code changes
-- **Weight adjustments**: Modify scoring impact through configuration
-- **Category organization**: Fields can be reorganized by category
-- **Validation rules**: Configurable per field
-
-### Performance Characteristics
-- **Automatic field discovery**: System attempts extraction for all registry fields
-- **Graceful degradation**: Individual field failures don't stop overall extraction
-- **Confidence scoring**: Each field extraction includes confidence assessment
-- **Comprehensive logging**: Detailed extraction results for debugging
-
-This comprehensive field mapping serves as the definitive reference for the AI SBOM Generator's field extraction, scoring, and documentation capabilities, with full standards compatibility for future interoperability.
+- **Registry-driven**: All fields configurable via `field_registry.json` without code changes
+- **Graceful degradation**: Individual field failures don't stop extraction
+- **Confidence scoring**: Each extracted value includes confidence assessment

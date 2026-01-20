@@ -1,8 +1,88 @@
 import json
 import uuid
 import datetime
-import json
 from typing import Dict, Optional, Any, List
+
+
+def _format_external_references(refs: List[Dict]) -> str:
+    """Format external references as 'type url (comment); ...'"""
+    formatted = []
+    for ref in refs:
+        parts = [ref.get("type", ""), ref.get("url", "")]
+        if ref.get("comment"):
+            parts.append(f"({ref['comment']})")
+        formatted.append(" ".join(p for p in parts if p))
+    return "; ".join(formatted)
+
+
+def _format_consistency_group(group: Dict) -> str:
+    """Format a single consistency group with newlines for readability."""
+    name = group.get("model_name", "unknown")
+    arch = group.get("architecture", "unknown")
+    files = group.get("files_scanned", 0)
+    consistent = group.get("consistent", True)
+
+    lines = [f"  model: {name} ({arch})"]
+    lines.append(f"  files: {files}")
+    lines.append(f"  status: {'✓ consistent' if consistent else '⚠ mismatch'}")
+
+    if not consistent:
+        if group.get("unique_hashes"):
+            lines.append(f"  unique_hashes: {group['unique_hashes']}")
+        if group.get("hashes_by_file"):
+            lines.append("  hashes:")
+            for fname, hval in group["hashes_by_file"].items():
+                lines.append(f"    - {fname}: {hval[:40]}...")
+
+    return "\n".join(lines)
+
+
+def _format_chat_template_consistency(value: Dict) -> str:
+    """Format chat template consistency check results with newlines."""
+    all_ok = value.get("all_consistent", True)
+    files = value.get("files_scanned", 0)
+    groups_count = value.get("model_groups_checked", 0)
+
+    lines = [f"{'✓' if all_ok else '⚠'} Chat Template Consistency"]
+    lines.append(f"files_scanned: {files}")
+    lines.append(f"model_groups: {groups_count}")
+
+    if value.get("warning"):
+        lines.append(f"warning: {value['warning']}")
+
+    groups = value.get("groups")
+    if groups:
+        lines.append("groups:")
+        for g in groups:
+            if isinstance(g, dict):
+                lines.append(_format_consistency_group(g))
+
+    return "\n".join(lines)
+
+
+def _format_value_for_display(value: Any) -> str:
+    """Format a value for human-readable display in AIBOM properties."""
+    if value is None:
+        return ""
+
+    if isinstance(value, list):
+        if value and all(isinstance(x, dict) and "url" in x for x in value):
+            return _format_external_references(value)
+        return ", ".join(str(x) for x in value)
+
+    if isinstance(value, dict):
+        if "all_consistent" in value or "files_scanned" in value:
+            return _format_chat_template_consistency(value)
+        parts = []
+        for k, v in value.items():
+            if isinstance(v, dict):
+                v = json.dumps(v)
+            elif isinstance(v, list):
+                v = ", ".join(str(x) for x in v) if v else "[]"
+            parts.append(f"{k}: {v}")
+        return "; ".join(parts)
+
+    return str(value)
 
 from huggingface_hub import HfApi, ModelCard
 from huggingface_hub.repocard_data import EvalResult
@@ -83,6 +163,7 @@ class AIBOMGenerator:
         output_file: Optional[str] = None,
         include_inference: Optional[bool] = None,
         use_best_practices: Optional[bool] = None,  # parameter for industry-neutral scoring
+        template_attestation: Optional[Dict[str, Any]] = None,  # External security attestation for chat template
     ) -> Dict[str, Any]:
         try:
             model_id = self._normalise_model_id(model_id)
@@ -94,7 +175,7 @@ class AIBOMGenerator:
             model_card = self._fetch_model_card(model_id)
             
             # Store original metadata before any AI enhancement
-            original_metadata = self._extract_structured_metadata(model_id, model_info, model_card)
+            original_metadata = self._extract_structured_metadata(model_id, model_info, model_card, template_attestation)
             print(f"🔍 ENHANCED EXTRACTION DEBUG: Returned {len(original_metadata)} fields:")
             for key, value in original_metadata.items():
                 print(f"   {key}: {value}")
@@ -326,17 +407,36 @@ class AIBOMGenerator:
         # 🔍 CRASH DEBUG: Check if we got this far
         print(f"🔍 CRASH_DEBUG: Successfully created basic AIBOM structure")
         
-        # ALWAYS add root-level external references
-        aibom["externalReferences"] = [{
-            "type": "distribution",
-            "url": f"https://huggingface.co/{model_id}"
-        }]
+        aibom["externalReferences"] = [
+            {
+                "type": "website",
+                "url": f"https://huggingface.co/{model_id}",
+                "comment": "Model repository page"
+            },
+            {
+                "type": "distribution",
+                "url": f"https://huggingface.co/{model_id}/tree/main",
+                "comment": "Model files download location"
+            }
+        ]
 
         if metadata and "commit_url" in metadata:
             aibom["externalReferences"].append({
-                "type": "vcs", 
-                "url": metadata["commit_url"]
-            } )
+                "type": "vcs",
+                "url": metadata["commit_url"],
+                "comment": "Specific commit reference"
+            })
+
+        if metadata and "extraction_provenance" in metadata:
+            prov = metadata["extraction_provenance"]
+            if isinstance(prov, dict) and prov.get("source_type") == "gguf_embedded":
+                aibom["externalReferences"].append({
+                    "type": "distribution",
+                    "url": f"https://huggingface.co/{model_id}/resolve/main/{prov.get('source_file', '')}",
+                    "comment": f"GGUF file containing embedded chat template"
+                })
+
+        aibom["declarations"] = self._create_declarations_section(model_id, metadata)
 
         print(f"🔍 CRASH_DEBUG: _create_aibom_structure completed successfully")
         return aibom
@@ -346,18 +446,18 @@ class AIBOMGenerator:
         model_id: str,
         model_info: Dict[str, Any],
         model_card: Optional[ModelCard],
+        template_attestation: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        
+
         # Use registry-aware enhanced extraction if available
         if ENHANCED_EXTRACTION_AVAILABLE:
             try:
                 print(f"🚀 Using registry-aware enhanced extraction for: {model_id}")
-            
+
                 # Create registry-aware enhanced extractor instance
                 extractor = EnhancedExtractor(self.hf_api, self.registry_manager)
-                
-                # Get both metadata and extraction results
-                metadata = extractor.extract_metadata(model_id, model_info, model_card)
+
+                metadata = extractor.extract_metadata(model_id, model_info, model_card, template_attestation)
                 
                 # Store extraction results for scoring
                 self.extraction_results = extractor.extraction_results
@@ -550,15 +650,8 @@ class AIBOMGenerator:
             if key not in (component_fields + ["eval_results"]) and value is not None:
                 # Handle different data types properly
                 if isinstance(value, (list, dict)):
-                    if isinstance(value, list) and len(value) > 0:
-                        # Convert list to comma-separated string for better display
-                        if all(isinstance(item, str) for item in value):
-                            value = ", ".join(value)
-                        else:
-                            value = json.dumps(value)
-                    elif isinstance(value, dict):
-                        value = json.dumps(value)
-                
+                    value = _format_value_for_display(value)
+
                 properties.append({"name": key, "value": str(value)})
                 print(f"✅ METADATA: Added {key} = {value} to properties")
 
@@ -650,13 +743,24 @@ class AIBOMGenerator:
             technical_properties.append({"name": "architectures", "value": str(arch_value)}) 
             print(f"✅ COMPONENT: Added architectures = {arch_value}") 
 
-        # Add library information 
-        if "library_name" in metadata: 
-            technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])}) 
-            print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}") 
+        if "library_name" in metadata:
+            technical_properties.append({"name": "library_name", "value": str(metadata["library_name"])})
+            print(f"✅ COMPONENT: Added library_name = {metadata['library_name']}")
 
-        # Add technical properties to component if any exist 
-        if technical_properties: 
+        if "chat_template_hash" in metadata:
+            technical_properties.append({"name": "chat_template_hash", "value": str(metadata["chat_template_hash"])})
+            print(f"✅ COMPONENT: Added chat_template_hash for integrity verification")
+
+        if "template_security_status" in metadata:
+            status = metadata["template_security_status"]
+            if isinstance(status, dict):
+                status_value = status.get("status", "unknown")
+            else:
+                status_value = str(status)
+            technical_properties.append({"name": "template_security_status", "value": status_value})
+            print(f"✅ COMPONENT: Added template_security_status = {status_value}")
+
+        if technical_properties:
             component["properties"] = technical_properties
 
         # Add external references
@@ -735,17 +839,9 @@ class AIBOMGenerator:
         try:
             for key, value in metadata.items():
                 if key not in component_level_fields and value is not None:
-                    # Handle different data types properly
                     if isinstance(value, (list, dict)):
-                        if isinstance(value, list) and len(value) > 0:
-                            # Convert list to readable format
-                            if all(isinstance(item, str) for item in value):
-                                value = ", ".join(value)
-                            else:
-                                value = json.dumps(value)
-                        elif isinstance(value, dict):
-                            value = json.dumps(value)
-                    
+                        value = _format_value_for_display(value)
+
                     properties.append({"name": key, "value": str(value)})
                     print(f"✅ MODEL_CARD: Added {key} = {value}")
         except AttributeError as e:
@@ -808,19 +904,28 @@ class AIBOMGenerator:
         # Add enhanced technical parameters
         if "model_type" in metadata or "tokenizer_class" in metadata or "architectures" in metadata:
             technical_details = {}
-            
+
             if "model_type" in metadata:
                 technical_details["modelType"] = metadata["model_type"]
-            
+
             if "tokenizer_class" in metadata:
                 technical_details["tokenizerClass"] = metadata["tokenizer_class"]
-                
+
             if "architectures" in metadata:
                 technical_details["architectures"] = metadata["architectures"]
-            
+
             # Add to model parameters
             model_parameters.update(technical_details)
             print(f"✅ MODEL_CARD: Added technical details: {list(technical_details.keys())}")
+
+        chat_template_fields = ["chat_template", "chat_template_hash", "template_source", "template_security_status"]
+        for field_name in chat_template_fields:
+            if field_name in metadata and metadata[field_name] is not None:
+                value = metadata[field_name]
+                if isinstance(value, (dict, list)):
+                    value = _format_value_for_display(value)
+                properties.append({"name": field_name, "value": str(value)})
+                print(f"✅ MODEL_CARD: Added chat template field {field_name}")
         
         # Update model parameters with enhanced details
         model_card_section["modelParameters"] = model_parameters
@@ -834,7 +939,64 @@ class AIBOMGenerator:
             model_card_section["considerations"] = considerations
 
         return model_card_section
-        
+
+    def _create_declarations_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create CycloneDX 1.6 declarations section with formal attestations.
+
+        This moves attestations from component properties to the BOM-level declarations,
+        enabling verification toolchains to consume security claims formally.
+        """
+        declarations = {
+            "attestations": []
+        }
+
+        version = metadata.get("commit", "1.0")
+        component_ref = f"pkg:huggingface/{model_id.replace('/', '/')}@{version}"
+
+        if "template_security_status" in metadata:
+            status = metadata["template_security_status"]
+            if isinstance(status, dict):
+                internal_status = status.get("status", "unscanned")
+                cdx_status_map = {
+                    "unscanned": "unknown",
+                    "clean": "satisfied",
+                    "suspicious": "not_satisfied",
+                    "malicious": "not_satisfied",
+                }
+                cdx_status = cdx_status_map.get(internal_status, "unknown")
+                claims = [component_ref]
+                subject = status.get("subject", {})
+                if isinstance(subject, dict):
+                    template_hash = subject.get("hash")
+                    if template_hash:
+                        claims.append(template_hash)
+
+                attestation = {
+                    "assessor": status.get("scanner_name"),
+                    "map": [
+                        {
+                            "requirement": "AIBOM-TMPL-001",
+                            "claims": claims,
+                            "status": cdx_status,
+                        }
+                    ],
+                    "signature": None,
+                }
+
+                scan_ts = status.get("scan_timestamp")
+                if scan_ts:
+                    attestation["timestamp"] = scan_ts
+
+                declarations["attestations"].append(attestation)
+
+        if "cdx_attestation" in metadata and not declarations["attestations"]:
+            cdx_att = metadata["cdx_attestation"]
+            if isinstance(cdx_att, dict):
+                declarations["attestations"].append(cdx_att)
+
+        return declarations
+
     def _get_license_url(self, license_id: str) -> str:
         """Get the URL for a license based on its SPDX ID."""
         license_urls = {
