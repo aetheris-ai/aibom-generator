@@ -5,7 +5,7 @@ The tool is also listed in the official **[CycloneDX Tool Center](https://cyclon
 
 🚀 **Try the tool live:**  
 👉 https://owasp-genai-aibom.org  
-🔖 Bookmark and share: https://owasp-genai-aibom.org 
+🔖 Bookmark and share: https://owasp-genai-aibom.org
 
 🌐 OWASP AIBOM Initiative: [genai.owasp.org/ai-sbom-initiative](https://genai.owasp.org/ai-sbom-initiative)
 
@@ -16,29 +16,32 @@ The tool is also listed in the official **[CycloneDX Tool Center](https://cyclon
 
 ## 📦 What It Does
 
-- Extracts metadata from models hosted on Hugging Face 🤗  
-- Generates an **AIBOM** (AI Bill of Materials) in CycloneDX 1.6 JSON format  
-- Calculates **AIBOM completeness scoring** with recommendations  
-- Supports metadata extraction from model cards, configurations, and repository files  
+- Extracts metadata from models hosted on Hugging Face 🤗
+- Generates an **AIBOM** (AI Bill of Materials) in CycloneDX 1.6 JSON format
+- Calculates **AIBOM completeness scoring** with recommendations
+- Supports metadata extraction from model cards, configurations, and repository files
 
 ---
 
 ## 🛠 Features
 
-- Human-readable AIBOM viewer  
-- JSON download  
-- Completeness scoring & improvement tips  
-- API endpoints for automation  
+- Human-readable AIBOM viewer
+- JSON download
+- Completeness scoring & improvement tips
+- API endpoints for automation
 - Standards-aligned generation (CycloneDX 1.6, compatible with SPDX AI Profile)
 
 ---
 
-## 🐞 Found a Bug or Have an Improvement Request?
+## 🤝 Contributing
 
-We welcome contributions and feedback.
+We welcome contributions and feedback! See our [Contributing Guide](CONTRIBUTING.md) for:
 
-➡ **Log an issue:**  
-https://github.com/aetheris-ai/aibom-generator/issues
+- Development setup
+- Code standards
+- PR workflow
+
+➡ **Report issues:** [GitHub Issues](https://github.com/GenAI-Security-Project/aibom-generator/issues)
 
 ---
 
