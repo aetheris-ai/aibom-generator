@@ -1,0 +1,19 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+.venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# Project specific
+MVC_REFACTOR_PLAN.md
