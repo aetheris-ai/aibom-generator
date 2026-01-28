@@ -290,15 +290,21 @@
                 <input type="text" name="model_id" placeholder="e.g., openai/whisper-tiny" required
                     style="flex: 1; max-width: 70%; margin-right: 10px;">
                 <input type="hidden" name="g_recaptcha_response" id="g-recaptcha-response">
-                <button class="g-recaptcha" data-sitekey="6Ld57kcrAAAAAL7X-BF2EYLN5Adsom2VnFOnGsYR"
+                {% if recaptcha_site_key %}
+                <button class="g-recaptcha" data-sitekey="{{ recaptcha_site_key }}"
                     data-callback="onSubmit" data-action="submit" id="generate-button" type="button">Generate
                     AIBOM</button>
+                {% else %}
+                <button type="submit" id="generate-button" onclick="this.disabled=true; this.innerText='Generating...'; document.getElementById('sbom-form').submit();">Generate AIBOM</button>
+                {% endif %}
             </form>
+            {% if recaptcha_site_key %}
             <div style="font-size: 12px; color: #777; margin-top: 10px;">
                 This site is protected by reCAPTCHA and the Google
                 <a href="https://policies.google.com/privacy">Privacy Policy</a> and
                 <a href="https://policies.google.com/terms">Terms of Service</a> apply.
             </div>
+            {% endif %}
         </div>
 
         <!-- Tool Description Section -->

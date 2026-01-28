@@ -14,7 +14,7 @@ from huggingface_hub.utils import RepositoryNotFoundError
 
 from ..models.service import AIBOMService
 from ..models.scoring import calculate_completeness_score
-from ..config import TEMPLATES_DIR, OUTPUT_DIR
+from ..config import TEMPLATES_DIR, OUTPUT_DIR, RECAPTCHA_SITE_KEY
 from ..utils.analytics import log_sbom_generation, get_sbom_count
 from ..utils.captcha import verify_recaptcha
 
@@ -50,7 +50,8 @@ def is_valid_hf_input(input_str: str) -> bool:
 async def root(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request, 
-        "sbom_count": get_sbom_count()
+        "sbom_count": get_sbom_count(),
+        "recaptcha_site_key": RECAPTCHA_SITE_KEY
     })
 
 @router.get("/status")
@@ -140,8 +141,8 @@ async def generate_form(
             "request": request,
             "filename": filename,
             "download_url": f"/output/{filename}",
-            "aibom": json.dumps(aibom, indent=2),
-            "raw_aibom": aibom,
+            "aibom": aibom,
+            "aibom_json": json.dumps(aibom, indent=2),
             "model_id": normalized_id,
             "sbom_count": get_sbom_count(),
             "completeness_score": completeness_score,

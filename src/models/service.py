@@ -304,7 +304,7 @@ class AIBOMService:
         raw_license = metadata.get("licenses") or metadata.get("license")
         if raw_license:
             norm_license = normalize_license_id(raw_license)
-            if norm_license:
+            if norm_license and norm_license.lower() != "other":
                 component["licenses"] = [{
                     "license": {
                         "id": norm_license,
@@ -312,7 +312,7 @@ class AIBOMService:
                     }
                 }]
             else:
-                # Fallback if normalization fails but license exists
+                # Fallback if normalization fails or is 'other', use name
                 component["licenses"] = [{"license": {"name": raw_license}}] 
         else:
              component["licenses"] = [{"license": {"id": "NOASSERTION"}}]
