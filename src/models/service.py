@@ -152,7 +152,7 @@ class AIBOMService:
             "serialNumber": f"urn:uuid:{str(uuid.uuid4())}",
             "version": 1,
             "metadata": {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
                 "tools": {
                     "components": [{
                         "bom-ref": "pkg:generic/owasp-genai/owasp-aibom-generator@1.0.0",
@@ -202,7 +202,8 @@ class AIBOMService:
         return raw_id
 
     def _create_aibom_structure(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        version = metadata.get("commit", "1.0")
+        version_full = metadata.get("commit", "1.0")
+        version = version_full[:7] if "commit" in metadata else version_full
         
         aibom = {
             "bomFormat": "CycloneDX",
@@ -233,8 +234,9 @@ class AIBOMService:
         return aibom
 
     def _create_metadata_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        version = metadata.get("commit", "1.0")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
+        version_full = metadata.get("commit", "1.0")
+        version = version_full[:7] if "commit" in metadata else version_full
         
         tools = {
             "components": [{
@@ -286,7 +288,8 @@ class AIBOMService:
         parts = model_id.split("/")
         group = parts[0] if len(parts) > 1 else ""
         name = parts[1] if len(parts) > 1 else parts[0]
-        version = metadata.get("commit", "1.0")
+        version_full = metadata.get("commit", "1.0")
+        version = version_full[:7] if "commit" in metadata else version_full
         
         purl = f"pkg:huggingface/{model_id.replace('/', '%2F')}"
         if "commit" in metadata:
@@ -325,7 +328,25 @@ class AIBOMService:
         author = metadata.get("author", group)
         if author and author != "unknown":
             component["authors"] = [{"name": author}]
-            component["publisher"] = author
+            
+            # Manufacturer and Supplier
+            # Use the group (org name) as the manufacturer and supplier if available
+            if group:
+                org_entity = {
+                    "name": group,
+                    "url": [f"https://huggingface.co/{group}"]
+                }
+                component["manufacturer"] = org_entity
+                component["supplier"] = org_entity
+            
+        # Hashes (Commit SHA)
+        if "commit" in metadata and metadata["commit"]:
+             component["hashes"] = [
+                 {
+                     "alg": "SHA-1",
+                     "content": metadata["commit"]
+                 }
+             ]
             
         # Technical Properties
         tech_props = []
