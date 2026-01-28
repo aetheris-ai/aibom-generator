@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -16,7 +17,26 @@ from .models import get_field_registry_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aibom_generator")
 
-app = FastAPI(title="AI SBOM Generator")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting AI SBOM Generator WebApp")
+    try:
+        get_field_registry_manager() # Ensure registry is loaded
+        logger.info("Registry loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load registry: {e}")
+        
+    # Initial cleanup
+    try:
+        perform_cleanup(OUTPUT_DIR, MAX_AGE_DAYS, MAX_FILES)
+    except Exception as e:
+        logger.warning(f"Initial cleanup failed: {e}")
+        
+    yield
+    # Shutdown (if needed)
+
+app = FastAPI(title="AI SBOM Generator", lifespan=lifespan)
 
 # --- Middleware ---
 app.add_middleware(
@@ -60,21 +80,8 @@ app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 # --- Routes ---
 app.include_router(web_router)
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Starting AI SBOM Generator MVC App")
-    try:
-        get_field_registry_manager() # Ensure registry is loaded
-        logger.info("Registry loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load registry: {e}")
-        
-    # Initial cleanup
-    try:
-        perform_cleanup(OUTPUT_DIR, MAX_AGE_DAYS, MAX_FILES)
-    except Exception as e:
-        logger.warning(f"Initial cleanup failed: {e}")
-
 if __name__ == "__main__":
     import uvicorn
+    # Print clear access URL to avoid 0.0.0.0 confusion
+    print("🚀 Application ready! Access it at: http://localhost:8000")
     uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)

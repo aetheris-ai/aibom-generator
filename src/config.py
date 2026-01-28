@@ -18,3 +18,4 @@ CLEANUP_INTERVAL = 100
 # Hugging Face Setup
 HF_REPO = "owasp-genai-security-project/aisbom-usage-log"
 HF_TOKEN = os.getenv("HF_TOKEN")
+RECAPTCHA_SITE_KEY = os.getenv("RECAPTCHA_SITE_KEY")
