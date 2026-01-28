@@ -26,10 +26,12 @@ The tool is also listed in the official **[CycloneDX Tool Center](https://cyclon
 ## 🛠 Features
 
 - Human-readable AIBOM viewer  
-- JSON download  
+- JSON download & **HTML Reports**  
 - Completeness scoring & improvement tips  
-- API endpoints for automation  
+- **Data Integrity**: Full commit hash verification & Manufacturer/Supplier mapping
 - Standards-aligned generation (CycloneDX 1.6, compatible with SPDX AI Profile)
+- **Schema Validation**: Built-in validation against CycloneDX schemas
+- **License Normalization**: SPDX-compliant license IDs
 
 ---
 
