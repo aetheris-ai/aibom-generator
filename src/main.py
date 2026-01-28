@@ -62,7 +62,7 @@ app.include_router(web_router)
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting AI SBOM Generator MVC App")
+    logger.info("Starting AI SBOM Generator WebApp")
     try:
         get_field_registry_manager() # Ensure registry is loaded
         logger.info("Registry loaded successfully")

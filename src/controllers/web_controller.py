@@ -9,7 +9,8 @@ from typing import Optional
 from fastapi import APIRouter, Request, Form, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from huggingface_hub import HfApi, RepositoryNotFoundError
+from huggingface_hub import HfApi
+from huggingface_hub.utils import RepositoryNotFoundError
 
 from ..models.service import AIBOMService
 from ..models.scoring import calculate_completeness_score
