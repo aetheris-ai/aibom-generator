@@ -152,7 +152,7 @@ class AIBOMService:
             "serialNumber": f"urn:uuid:{str(uuid.uuid4())}",
             "version": 1,
             "metadata": {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
                 "tools": {
                     "components": [{
                         "bom-ref": "pkg:generic/owasp-genai/owasp-aibom-generator@1.0.0",
@@ -233,7 +233,7 @@ class AIBOMService:
         return aibom
 
     def _create_metadata_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
         version = metadata.get("commit", "1.0")
         
         tools = {
@@ -260,26 +260,22 @@ class AIBOMService:
         }
         if authors:
             component["authors"] = authors
+
+        # Manufacturer and Supplier (from Group/Org)
+        parts = model_id.split("/")
+        if len(parts) > 1:
+            group = parts[0]
+            org_entity = {
+                "name": group,
+                "url": [f"https://huggingface.co/{group}"]
+            }
+            component["manufacturer"] = org_entity
+            component["supplier"] = org_entity
             
-        # Properties
-        properties = []
-        # Critical fields
-        for key in ["primaryPurpose", "suppliedBy", "typeOfModel"]:
-             if key in metadata:
-                properties.append({"name": key, "value": str(metadata[key])})
-        
-        # All other fields (excluding component-level ones)
-        exclude_fields = ["name", "author", "description", "commit", "eval_results", "primaryPurpose", "suppliedBy", "typeOfModel"]
-        for key, value in metadata.items():
-            if key not in exclude_fields and value is not None:
-                val_str = json.dumps(value) if isinstance(value, (list, dict)) else str(value)
-                properties.append({"name": key, "value": val_str})
-                
         return {
             "timestamp": timestamp,
             "tools": tools,
-            "component": component,
-            "properties": properties
+            "component": component
         }
 
     def _create_component_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -325,7 +321,16 @@ class AIBOMService:
         author = metadata.get("author", group)
         if author and author != "unknown":
             component["authors"] = [{"name": author}]
-            component["publisher"] = author
+            
+            # Manufacturer and Supplier
+            # Use the group (org name) as the manufacturer and supplier if available
+            if group:
+                org_entity = {
+                    "name": group,
+                    "url": [f"https://huggingface.co/{group}"]
+                }
+                component["manufacturer"] = org_entity
+                component["supplier"] = org_entity
             
         # Technical Properties
         tech_props = []
@@ -383,7 +388,7 @@ class AIBOMService:
         
         # Properties (everything else)
         props = []
-        exclude = ["name", "author", "license", "description", "commit"]
+        exclude = ["name", "author", "license", "description", "commit", "bomFormat", "specVersion", "version", "licenses"]
         for k, v in metadata.items():
             if k not in exclude and v is not None:
                 val = json.dumps(v) if isinstance(v, (list, dict)) else str(v)

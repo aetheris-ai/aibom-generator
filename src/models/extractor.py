@@ -226,6 +226,12 @@ class EnhancedExtractor:
         logger.info(f"📊 Registry extraction complete: {successful_extractions} successful, {failed_extractions} failed")
         
         # Add external references (always needed)
+        # Always extract commit SHA if available (vital for BOM versioning)
+        if 'commit' not in metadata:
+             commit_sha = getattr(model_info, 'sha', None)
+             if commit_sha:
+                 metadata['commit'] = commit_sha
+
         # Add external references (always needed)
         metadata.update(self._generate_external_references(model_id, metadata))
         
@@ -340,7 +346,7 @@ class EnhancedExtractor:
             'tags': lambda info: getattr(info, 'tags', []),
             'pipeline_tag': lambda info: getattr(info, 'pipeline_tag', None),
             'downloads': lambda info: getattr(info, 'downloads', 0),
-            'commit': lambda info: getattr(info, 'sha', '')[:7] if getattr(info, 'sha', None) else None,
+            'commit': lambda info: getattr(info, 'sha', '') if getattr(info, 'sha', None) else None,
             'suppliedBy': lambda info: getattr(info, 'author', None) or context['model_id'].split('/')[0],
             'primaryPurpose': lambda info: getattr(info, 'pipeline_tag', 'text-generation'),
             'downloadLocation': lambda info: f"https://huggingface.co/{context['model_id']}/tree/main",
@@ -580,7 +586,7 @@ class EnhancedExtractor:
                 
                 commit_sha = getattr(model_info, "sha", None)
                 if commit_sha:
-                    metadata['commit'] = commit_sha[:7]
+                    metadata['commit'] = commit_sha
             except Exception:
                 pass
         
