@@ -108,6 +108,12 @@ class CLIController:
                     print("\n💡 Top Recommendations:")
                     for rec in score["recommendations"][:3]:
                         print(f"   - [{rec.get('priority', 'medium').upper()}] {rec.get('message')}")
+
+                # Schema Validation Errors
+                if "schema_validation" in report and not report["schema_validation"].get("valid"):
+                    print("\n⚠️ Schema Validation Errors:")
+                    for error in report["schema_validation"].get("errors", []):
+                        print(f"   - {error}")
             
 
             
