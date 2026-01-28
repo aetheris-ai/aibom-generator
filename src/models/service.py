@@ -304,18 +304,36 @@ class AIBOMService:
         raw_license = metadata.get("licenses") or metadata.get("license")
         if raw_license:
             norm_license = normalize_license_id(raw_license)
-            if norm_license and norm_license.lower() != "other":
-                component["licenses"] = [{
-                    "license": {
-                        "id": norm_license,
-                        "url": get_license_url(norm_license)
-                    }
-                }]
+            # User request: treat NOASSERTION as name to be safe
+            if norm_license == "NOASSERTION":
+                 component["licenses"] = [{"license": {"name": "NOASSERTION"}}]
+            elif norm_license and norm_license.lower() != "other":
+                # Check if it looks like a valid SPDX ID (simple heuristic: no spaces, usually short)
+                # But our normalize_license_id might return long URLs or names if mapped 
+                # (e.g. nvidia-open-model-license is not a standard SPDX ID but we treat it as key)
+                
+                # If it's the NVIDIA license, putting it in ID fails schema validation because it's not in the enum.
+                # So we put it in name, and add the URL.
+                if "nvidia" in norm_license.lower():
+                     component["licenses"] = [{
+                        "license": {
+                            "name": norm_license,
+                            "url": get_license_url(norm_license)
+                        }
+                    }]
+                else:
+                    component["licenses"] = [{
+                        "license": {
+                            "id": norm_license,
+                            "url": get_license_url(norm_license)
+                        }
+                    }]
             else:
                 # Fallback if normalization fails or is 'other', use name
                 component["licenses"] = [{"license": {"name": raw_license}}] 
         else:
-             component["licenses"] = [{"license": {"id": "NOASSERTION"}}]
+             # Default fallback per user request to use name for NOASSERTION
+             component["licenses"] = [{"license": {"name": "NOASSERTION"}}]
              
         # Authors
         author = metadata.get("author", group)

@@ -69,9 +69,10 @@ class EnhancedExtractor:
     # Moved to class level to avoid recompilation on every request
     PATTERNS = {
         'license': [
-            re.compile(r'license[:\s]+([a-zA-Z0-9\-\.]+)', re.IGNORECASE),
-            re.compile(r'licensed under[:\s]+([a-zA-Z0-9\-\.]+)', re.IGNORECASE),
-            re.compile(r'released under[:\s]+([a-zA-Z0-9\-\.]+)', re.IGNORECASE),
+            re.compile(r'license[:\s]+([a-zA-Z0-9\-\.\s]+)', re.IGNORECASE),
+            re.compile(r'licensed under[:\s]+([a-zA-Z0-9\-\.\s]+)', re.IGNORECASE),
+            re.compile(r'governed by[:\s]+(?:the )?\[?([a-zA-Z0-9\-\.\s]+)\]?', re.IGNORECASE),
+            re.compile(r'governed by the[:\s]+\[?([a-zA-Z0-9\-\.\s]+)\]?', re.IGNORECASE),
         ],
         'datasets': [
             re.compile(r'trained on[:\s]+([a-zA-Z0-9\-\_\/]+)', re.IGNORECASE),
@@ -311,6 +312,27 @@ class EnhancedExtractor:
                 )
                 return detected
         
+        if field_name == "description":
+            # Try intelligent summarization if description is missing
+            try:
+                from ..utils.summarizer import LocalSummarizer
+                readme = context.get('readme_content')
+                if readme:
+                    summary = LocalSummarizer.summarize(readme)
+                    if summary:
+                        self.extraction_results[field_name] = ExtractionResult(
+                            value=summary,
+                            source=DataSource.INTELLIGENT_DEFAULT,
+                            confidence=ConfidenceLevel.MEDIUM,
+                            extraction_method="llm_summarization",
+                            fallback_chain=extraction_methods
+                        )
+                        return summary
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug(f"Summarization processing failed: {e}")
+
         # Strategy 6: Fallback value (if configured)
         fallback_value = self._try_fallback_value(field_name, field_config)
         if fallback_value is not None:
@@ -356,7 +378,11 @@ class EnhancedExtractor:
         
         if field_name in api_mappings:
             try:
-                return api_mappings[field_name](model_info)
+                val = api_mappings[field_name](model_info)
+                # If valid value found, return it (filtering out "other")
+                if val and str(val).lower() != "other":
+                    return val
+                return None
             except Exception as e:
                 logger.debug(f"API extraction failed for {field_name}: {e}")
                 return None
@@ -393,10 +419,12 @@ class EnhancedExtractor:
                         if value:
                             return value
                 else:
-                    return card_data.get(mapping)
+                    val = card_data.get(mapping)
+                    return val if val and str(val).lower() != "other" else None
             
             # Direct field name lookup
-            return card_data.get(field_name)
+            val = card_data.get(field_name)
+            return val if val and str(val).lower() != "other" else None
             
         except Exception as e:
             logger.debug(f"Model card extraction failed for {field_name}: {e}")
@@ -451,9 +479,10 @@ class EnhancedExtractor:
         """Find matches for a list of patterns in content"""
         matches = []
         for pattern in patterns:
-            found = pattern.findall(content)
-            if found:
-                matches.extend(found)
+            match = pattern.search(content)
+            if match:
+                val = match.group(1).strip()
+                matches.append(val)
         return list(set(matches)) # Return unique matches
     
     def _try_intelligent_inference(self, field_name: str, context: Dict[str, Any]) -> Any:

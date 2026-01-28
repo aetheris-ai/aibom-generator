@@ -72,6 +72,28 @@ class CLIController:
                 
                 print(f"\n📄 HTML Report:\n   {html_output_file}")
                 
+                 # Model Description
+                if "components" in aibom and aibom["components"]:
+                    description = aibom["components"][0].get("description", "No description available")
+                    # Truncate if very long for CLI readability
+                    if len(description) > 500:
+                        description = description[:497] + "..."
+                    print(f"\n📝 Model Description:\n   {description}")
+
+                # License
+                if "components" in aibom and aibom["components"]:
+                     comp = aibom["components"][0]
+                     if "licenses" in comp:
+                         license_list = []
+                         for l in comp["licenses"]:
+                             lic = l.get("license", {})
+                             val = lic.get("id") or lic.get("name")
+                             if val:
+                                 license_list.append(val)
+                         
+                         if license_list:
+                             print(f"\n⚖️ License:\n   {', '.join(license_list)}")
+                
             except Exception as e:
                 logger.warning(f"Failed to generate HTML report: {e}")
             
