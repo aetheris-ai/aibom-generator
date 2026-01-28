@@ -202,8 +202,7 @@ class AIBOMService:
         return raw_id
 
     def _create_aibom_structure(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        version_full = metadata.get("commit", "1.0")
-        version = version_full[:7] if "commit" in metadata else version_full
+        version = metadata.get("commit", "1.0")
         
         aibom = {
             "bomFormat": "CycloneDX",
@@ -235,8 +234,7 @@ class AIBOMService:
 
     def _create_metadata_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')
-        version_full = metadata.get("commit", "1.0")
-        version = version_full[:7] if "commit" in metadata else version_full
+        version = metadata.get("commit", "1.0")
         
         tools = {
             "components": [{
@@ -262,34 +260,29 @@ class AIBOMService:
         }
         if authors:
             component["authors"] = authors
+
+        # Manufacturer and Supplier (from Group/Org)
+        parts = model_id.split("/")
+        if len(parts) > 1:
+            group = parts[0]
+            org_entity = {
+                "name": group,
+                "url": [f"https://huggingface.co/{group}"]
+            }
+            component["manufacturer"] = org_entity
+            component["supplier"] = org_entity
             
-        # Properties
-        properties = []
-        # Critical fields
-        for key in ["primaryPurpose", "suppliedBy", "typeOfModel"]:
-             if key in metadata:
-                properties.append({"name": key, "value": str(metadata[key])})
-        
-        # All other fields (excluding component-level ones)
-        exclude_fields = ["name", "author", "description", "commit", "eval_results", "primaryPurpose", "suppliedBy", "typeOfModel"]
-        for key, value in metadata.items():
-            if key not in exclude_fields and value is not None:
-                val_str = json.dumps(value) if isinstance(value, (list, dict)) else str(value)
-                properties.append({"name": key, "value": val_str})
-                
         return {
             "timestamp": timestamp,
             "tools": tools,
-            "component": component,
-            "properties": properties
+            "component": component
         }
 
     def _create_component_section(self, model_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         parts = model_id.split("/")
         group = parts[0] if len(parts) > 1 else ""
         name = parts[1] if len(parts) > 1 else parts[0]
-        version_full = metadata.get("commit", "1.0")
-        version = version_full[:7] if "commit" in metadata else version_full
+        version = metadata.get("commit", "1.0")
         
         purl = f"pkg:huggingface/{model_id.replace('/', '%2F')}"
         if "commit" in metadata:
@@ -338,15 +331,6 @@ class AIBOMService:
                 }
                 component["manufacturer"] = org_entity
                 component["supplier"] = org_entity
-            
-        # Hashes (Commit SHA)
-        if "commit" in metadata and metadata["commit"]:
-             component["hashes"] = [
-                 {
-                     "alg": "SHA-1",
-                     "content": metadata["commit"]
-                 }
-             ]
             
         # Technical Properties
         tech_props = []
@@ -404,7 +388,7 @@ class AIBOMService:
         
         # Properties (everything else)
         props = []
-        exclude = ["name", "author", "license", "description", "commit"]
+        exclude = ["name", "author", "license", "description", "commit", "bomFormat", "specVersion", "version", "licenses"]
         for k, v in metadata.items():
             if k not in exclude and v is not None:
                 val = json.dumps(v) if isinstance(v, (list, dict)) else str(v)
