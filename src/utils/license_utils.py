@@ -24,6 +24,7 @@ LICENSE_URLS: Dict[str, str] = {
     "CC0-1.0": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
     "MPL-2.0": "https://www.mozilla.org/en-US/MPL/2.0/",
     "Unlicense": "https://unlicense.org/",
+    "nvidia-open-model-license": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
 }
 
 # Mapping common variations to valid SPDX IDs
@@ -37,6 +38,7 @@ LICENSE_MAPPING: Dict[str, str] = {
     "cc-by-nc-4.0": "CC-BY-NC-4.0",
     "cc0-1.0": "CC0-1.0",
     "gpl-3.0": "GPL-3.0-only",
+    "nvidia open model license agreement": "nvidia-open-model-license",
     # Add more as needed
 }
 

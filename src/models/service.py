@@ -60,6 +60,7 @@ class AIBOMService:
         model_id: str,
         include_inference: Optional[bool] = None,
         use_best_practices: Optional[bool] = None,
+        enable_summarization: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate an AIBOM for the specified Hugging Face model.
@@ -76,7 +77,7 @@ class AIBOMService:
             model_card = self._fetch_model_card(model_id)
             
             # 1. Extract Metadata
-            original_metadata = self._extract_metadata(model_id, model_info, model_card)
+            original_metadata = self._extract_metadata(model_id, model_info, model_card, enable_summarization)
             
             # 2. Create Initial AIBOM
             original_aibom = self._create_aibom_structure(model_id, original_metadata)
@@ -132,7 +133,7 @@ class AIBOMService:
             logger.error(f"Error generating AIBOM: {e}", exc_info=True)
             return self._create_minimal_aibom(model_id)
 
-    def _extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard]) -> Dict[str, Any]:
+    def _extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard], enable_summarization: bool = False) -> Dict[str, Any]:
         """Wrapper around EnhancedExtractor"""
         extractor = EnhancedExtractor(self.hf_api) # Pass hfapi instance
         # Ideally we reuse the registry manager
@@ -140,7 +141,7 @@ class AIBOMService:
             extractor.registry_manager = self.registry_manager
             extractor.registry_fields = self.registry_manager.get_field_definitions()
 
-        metadata = extractor.extract_metadata(model_id, model_info, model_card)
+        metadata = extractor.extract_metadata(model_id, model_info, model_card, enable_summarization=enable_summarization)
         self.extraction_results = extractor.extraction_results
         return metadata
 
@@ -303,19 +304,45 @@ class AIBOMService:
         # License
         raw_license = metadata.get("licenses") or metadata.get("license")
         if raw_license:
-            norm_license = normalize_license_id(raw_license)
-            if norm_license and norm_license.lower() != "other":
-                component["licenses"] = [{
-                    "license": {
-                        "id": norm_license,
-                        "url": get_license_url(norm_license)
-                    }
-                }]
+            # Handle list input (e.g. from regex text extraction)
+            if isinstance(raw_license, list):
+                if len(raw_license) > 0:
+                    raw_license = raw_license[0] # Take the first match
+                else:
+                    raw_license = None
+            
+            if raw_license:
+                norm_license = normalize_license_id(raw_license)
+            # User request: treat NOASSERTION as name to be safe
+            if norm_license == "NOASSERTION":
+                 component["licenses"] = [{"license": {"name": "NOASSERTION"}}]
+            elif norm_license and norm_license.lower() != "other":
+                # Check if it looks like a valid SPDX ID (simple heuristic: no spaces, usually short)
+                # But our normalize_license_id might return long URLs or names if mapped 
+                # (e.g. nvidia-open-model-license is not a standard SPDX ID but we treat it as key)
+                
+                # If it's the NVIDIA license, putting it in ID fails schema validation because it's not in the enum.
+                # So we put it in name, and add the URL.
+                if "nvidia" in norm_license.lower():
+                     component["licenses"] = [{
+                        "license": {
+                            "name": norm_license,
+                            "url": get_license_url(norm_license)
+                        }
+                    }]
+                else:
+                    component["licenses"] = [{
+                        "license": {
+                            "id": norm_license,
+                            "url": get_license_url(norm_license)
+                        }
+                    }]
             else:
                 # Fallback if normalization fails or is 'other', use name
                 component["licenses"] = [{"license": {"name": raw_license}}] 
         else:
-             component["licenses"] = [{"license": {"id": "NOASSERTION"}}]
+             # Default fallback per user request to use name for NOASSERTION
+             component["licenses"] = [{"license": {"name": "NOASSERTION"}}]
              
         # Authors
         author = metadata.get("author", group)

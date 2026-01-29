@@ -11,13 +11,13 @@ class CLIController:
     def __init__(self):
         self.service = AIBOMService()
 
-    def generate(self, model_id: str, output_file: Optional[str] = None, include_inference: bool = False, verbose: bool = False):
+    def generate(self, model_id: str, output_file: Optional[str] = None, include_inference: bool = False, enable_summarization: bool = False, verbose: bool = False):
         if verbose:
             logging.getLogger().setLevel(logging.INFO)
             
         print(f"Generating AIBOM for {model_id}...")
         try:
-            aibom = self.service.generate_aibom(model_id, include_inference=include_inference)
+            aibom = self.service.generate_aibom(model_id, include_inference=include_inference, enable_summarization=enable_summarization)
             report = self.service.get_enhancement_report()
             
             if not output_file:
@@ -72,6 +72,28 @@ class CLIController:
                 
                 print(f"\n📄 HTML Report:\n   {html_output_file}")
                 
+                 # Model Description
+                if "components" in aibom and aibom["components"]:
+                    description = aibom["components"][0].get("description", "No description available")
+                    # Truncate if very long for CLI readability
+                    if len(description) > 500:
+                        description = description[:497] + "..."
+                    print(f"\n📝 Model Description:\n   {description}")
+
+                # License
+                if "components" in aibom and aibom["components"]:
+                     comp = aibom["components"][0]
+                     if "licenses" in comp:
+                         license_list = []
+                         for l in comp["licenses"]:
+                             lic = l.get("license", {})
+                             val = lic.get("id") or lic.get("name")
+                             if val:
+                                 license_list.append(val)
+                         
+                         if license_list:
+                             print(f"\n⚖️ License:\n   {', '.join(license_list)}")
+                
             except Exception as e:
                 logger.warning(f"Failed to generate HTML report: {e}")
             
@@ -114,9 +136,7 @@ class CLIController:
                     print("\n⚠️ Schema Validation Errors:")
                     for error in report["schema_validation"].get("errors", []):
                         print(f"   - {error}")
-            
 
-            
         except Exception as e:
             print(f"❌ Error: {e}")
             if verbose:

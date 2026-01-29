@@ -69,9 +69,12 @@ class EnhancedExtractor:
     # Moved to class level to avoid recompilation on every request
     PATTERNS = {
         'license': [
-            re.compile(r'license[:\s]+([a-zA-Z0-9\-\.]+)', re.IGNORECASE),
-            re.compile(r'licensed under[:\s]+([a-zA-Z0-9\-\.]+)', re.IGNORECASE),
-            re.compile(r'released under[:\s]+([a-zA-Z0-9\-\.]+)', re.IGNORECASE),
+            re.compile(r'license[:\s]+([a-zA-Z0-9\-\.\s\n]+)', re.IGNORECASE | re.DOTALL),
+            re.compile(r'licensed under[:\s]+([a-zA-Z0-9\-\.\s\n]+)', re.IGNORECASE | re.DOTALL),
+            # Robust capture for markdown links [License Name](...)
+            re.compile(r'governed by[:\s]+(?:the\s+)?\[([^\]]+)\]', re.IGNORECASE | re.DOTALL),
+            re.compile(r'governed by[:\s]+(?:the\s+)?([a-zA-Z0-9\-\.\s\n]+)', re.IGNORECASE | re.DOTALL),
+            re.compile(r'governed by the[:\s]+\[([^\]]+)\]', re.IGNORECASE | re.DOTALL),
         ],
         'datasets': [
             re.compile(r'trained on[:\s]+([a-zA-Z0-9\-\_\/]+)', re.IGNORECASE),
@@ -163,7 +166,7 @@ class EnhancedExtractor:
                 continue
         return None
 
-    def extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard]) -> Dict[str, Any]:
+    def extract_metadata(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard], enable_summarization: bool = False) -> Dict[str, Any]:
         """
         Main extraction method with full registry integration.
         """
@@ -176,7 +179,7 @@ class EnhancedExtractor:
         if self.registry_fields:
             # Registry-driven extraction
             logger.info(f"📋 Registry-driven mode: Attempting extraction for {len(self.registry_fields)} fields")
-            metadata = self._registry_driven_extraction(model_id, model_info, model_card)
+            metadata = self._registry_driven_extraction(model_id, model_info, model_card, enable_summarization)
         else:
             # Fallback to legacy extraction
             logger.warning("⚠️ Registry not available, falling back to legacy extraction")
@@ -185,7 +188,7 @@ class EnhancedExtractor:
         # Return metadata in the same format as original method
         return {k: v for k, v in metadata.items() if v is not None}
     
-    def _registry_driven_extraction(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard]) -> Dict[str, Any]:
+    def _registry_driven_extraction(self, model_id: str, model_info: Dict[str, Any], model_card: Optional[ModelCard], enable_summarization: bool = False) -> Dict[str, Any]:
         """
         Registry-driven extraction that automatically processes all registry fields.
         """
@@ -198,7 +201,8 @@ class EnhancedExtractor:
             'model_card': model_card,
             'readme_content': self._get_readme_content(model_card, model_id),
             'config_data': self._download_and_parse_config(model_id, "config.json"),
-            'tokenizer_config': self._download_and_parse_config(model_id, "tokenizer_config.json")
+            'tokenizer_config': self._download_and_parse_config(model_id, "tokenizer_config.json"),
+            'enable_summarization': enable_summarization
         }
         
         # Process each field from the registry
@@ -241,6 +245,9 @@ class EnhancedExtractor:
         """
         Extract a single field based on its registry configuration.
         """
+        if field_name == 'license':
+             logger.warning(f"DEBUG: Extracting license...")
+
         extraction_methods = []
         
         # Strategy 1: Direct API extraction
@@ -279,6 +286,7 @@ class EnhancedExtractor:
         # Strategy 4: Text pattern extraction
         text_value = self._try_text_pattern_extraction(field_name, context)
         if text_value is not None:
+             # ...
             self.extraction_results[field_name] = ExtractionResult(
                 value=text_value,
                 source=DataSource.README_TEXT,
@@ -311,6 +319,32 @@ class EnhancedExtractor:
                 )
                 return detected
         
+        if field_name == "description":
+            # Try intelligent summarization if description is missing AND enabled
+            if context.get('enable_summarization', False):
+                try:
+                    from ..utils.summarizer import LocalSummarizer
+                    readme = context.get('readme_content')
+                    if readme:
+                        # Clean README: Remove YAML frontmatter if present
+                        # Matches content between first two --- lines at start of file
+                        clean_readme = re.sub(r'^---\n.*?\n---\n', '', readme, flags=re.DOTALL).strip()
+                        
+                        summary = LocalSummarizer.summarize(clean_readme)
+                        if summary:
+                            self.extraction_results[field_name] = ExtractionResult(
+                                value=summary,
+                                source=DataSource.INTELLIGENT_DEFAULT,
+                                confidence=ConfidenceLevel.MEDIUM,
+                                extraction_method="llm_summarization",
+                                fallback_chain=extraction_methods
+                            )
+                            return summary
+                except ImportError:
+                    pass
+                except Exception as e:
+                    logger.debug(f"Summarization processing failed: {e}")
+
         # Strategy 6: Fallback value (if configured)
         fallback_value = self._try_fallback_value(field_name, field_config)
         if fallback_value is not None:
@@ -356,7 +390,16 @@ class EnhancedExtractor:
         
         if field_name in api_mappings:
             try:
-                return api_mappings[field_name](model_info)
+                val = api_mappings[field_name](model_info)
+                # If valid value found, return it (filtering out "other")
+                if val:
+                    str_val = str(val).lower()
+                    if isinstance(val, list) and len(val) > 0:
+                        str_val = str(val[0]).lower()
+                    
+                    if str_val != "other" and str_val != "['other']" and str_val != "['other']":
+                        return val
+                return None
             except Exception as e:
                 logger.debug(f"API extraction failed for {field_name}: {e}")
                 return None
@@ -393,10 +436,22 @@ class EnhancedExtractor:
                         if value:
                             return value
                 else:
-                    return card_data.get(mapping)
+                    val = card_data.get(mapping)
+                    if val:
+                        str_val = str(val).lower()
+                        if isinstance(val, list) and len(val) > 0:
+                            str_val = str(val[0]).lower()
+                        return val if str_val != "other" else None
+                    return None
             
             # Direct field name lookup
-            return card_data.get(field_name)
+            val = card_data.get(field_name)
+            if val:
+                str_val = str(val).lower()
+                if isinstance(val, list) and len(val) > 0:
+                    str_val = str(val[0]).lower()
+                return val if str_val != "other" else None
+            return None
             
         except Exception as e:
             logger.debug(f"Model card extraction failed for {field_name}: {e}")
@@ -430,6 +485,7 @@ class EnhancedExtractor:
         # Pattern mappings for different fields
         pattern_mappings = {
             'license': 'license',
+            'licenses': 'license', # Fix: Handle plural key
             'datasets': 'datasets',
             'energyConsumption': 'energy',
             'limitation': 'limitations',
@@ -443,6 +499,12 @@ class EnhancedExtractor:
                 # Need to implement _find_pattern_matches which was missing in original snippet but used
                 matches = self._find_pattern_matches(readme_content, self.PATTERNS[pattern_key])
                 if matches:
+                    # Prefer longest match for critical fields where "the" or short noise might appear
+                    if field_name in ['license', 'licenses']:
+                         return max(matches, key=len)
+                    # Prefer string for critical fields
+                    if field_name in ['model_type']: 
+                        return matches[0]
                     return matches[0] if len(matches) == 1 else matches
         
         return None
@@ -451,9 +513,14 @@ class EnhancedExtractor:
         """Find matches for a list of patterns in content"""
         matches = []
         for pattern in patterns:
-            found = pattern.findall(content)
-            if found:
-                matches.extend(found)
+            match = pattern.search(content)
+            if match:
+                # Replace newlines/tabs with single space
+                val = re.sub(r'\s+', ' ', match.group(1)).strip()
+                # Filtering: 'the' is never a license
+                if val.lower() == 'the':
+                    continue
+                matches.append(val)
         return list(set(matches)) # Return unique matches
     
     def _try_intelligent_inference(self, field_name: str, context: Dict[str, Any]) -> Any:
